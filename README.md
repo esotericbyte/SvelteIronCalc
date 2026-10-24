@@ -1,0 +1,63 @@
+# ironcalc-svelte
+
+A Svelte 5 port of [IronCalc](https://github.com/ironcalc/IronCalc)'s spreadsheet widget, the React package `@ironcalc/workbook`. It runs on IronCalc's own engine, `@ironcalc/wasm`, and reuses upstream's canvas renderer unchanged; the React components are rewritten as Svelte components with [Skeleton](https://www.skeleton.dev) and [Lucide](https://lucide.dev) icons.
+
+The goal is feature parity with `@ironcalc/workbook` 0.9.1. The work goes in phases, and [docs/parity.md](docs/parity.md) is the roadmap: it maps every upstream file to its Svelte counterpart and says what is done and what comes next.
+
+**Status: phase 1, a read-only sheet.** Scrolling, cell/range/row/column selection with pointer and keyboard, frozen panes, merged cells, conditional formatting rendering, sheet tabs and the sheet list, a read-only formula bar, cell links, copying the selection, theme variables (including dark), and loading and saving xlsx. Editing, the toolbar, menus and the right drawer come in later phases. The package is not published to npm yet.
+
+## 1. Use
+
+```svelte
+<script lang="ts">
+  import { init, IronCalc, Model } from "ironcalc-svelte";
+  import { initXlsx, modelFromXlsx, downloadXlsx } from "ironcalc-svelte/xlsx";
+
+  let model: Model | null = $state(null);
+
+  async function open(file: File) {
+    await Promise.all([init(), initXlsx()]);
+    model = modelFromXlsx(new Uint8Array(await file.arrayBuffer()), file.name);
+  }
+</script>
+
+<input type="file" accept=".xlsx" onchange={(e) => open(e.currentTarget.files![0])} />
+{#if model}
+  <div style="height: 600px"><IronCalc {model} /></div>
+  <button onclick={() => downloadXlsx(model!, "copy.xlsx")}>Download</button>
+{/if}
+```
+
+`IronCalc` takes a `Model` from `@ironcalc/wasm` (`Model.fromBytes`, `new Model(...)`, or `modelFromXlsx`) and an optional `themeVariables` (for example `darkThemeVariables`). It fills its parent, so give the parent a height. Keyboard input is handled only while the widget has focus; it takes focus when clicked.
+
+The xlsx helpers live in the separate entry `ironcalc-svelte/xlsx` because they need `@ironcalc/wasm-xlsx`, upstream's larger engine build with xlsx support, which is an optional peer dependency. Without them, `Model.fromBytes` and `model.toBytes()` work with IronCalc's own format.
+
+### 1.1 Styling
+
+The widget's layout and colors come from upstream's CSS variables (`--palette-*`, see `src/lib/upstream/theme/theme.css`). Its menus use Skeleton components and Tailwind classes, so the host app needs Tailwind 4 and Skeleton, and must let Tailwind scan this package:
+
+```css
+@import "tailwindcss";
+@import "@skeletonlabs/skeleton";
+@import "@skeletonlabs/skeleton/themes/cerberus";
+@source "../node_modules/ironcalc-svelte/dist";
+@source "../node_modules/@skeletonlabs/skeleton-svelte/dist";
+```
+
+Upstream's sheet font is Inter; load it in the host app (the demo shows how) or the renderer falls back to sans-serif.
+
+## 2. Develop
+
+```sh
+npm install
+npm run dev      # the demo app: open an .xlsx file or the generated sample
+npm run check    # svelte-check
+npm test         # vitest
+npm run build    # demo build, then svelte-package and publint into dist/
+```
+
+`src/lib/` is the library; `src/routes/` is the demo app. Code carried over from upstream lives in `src/lib/upstream/` and must stay identical to upstream; `scripts/upstream-diff.sh <IronCalc checkout>` shows how it differs from a given upstream checkout.
+
+## 3. License
+
+MIT OR Apache-2.0, at your option, like IronCalc. This repository carries IronCalc code under its copyright; see [NOTICE](NOTICE).

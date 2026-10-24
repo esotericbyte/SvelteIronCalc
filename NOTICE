@@ -1,0 +1,33 @@
+ironcalc-svelte
+Copyright 2026 - Present SvelteIronCalc contributors
+
+This project is a Svelte port of the IronCalc spreadsheet widget and carries
+code from IronCalc (https://github.com/ironcalc/IronCalc):
+
+  Copyright 2023 EqualTo GmbH
+  Copyright 2023 - Present IronCalc contributors
+  Copyright 2026 - Present IronCalc GmbH
+
+IronCalc is licensed under MIT OR Apache-2.0, at your option, as is this
+project (see LICENSE-MIT and LICENSE-APACHE, copied from IronCalc).
+
+Files carried over from IronCalc, at commit
+9cfbdfce5efcdbedd57520ad9fd797b12e6bf0ba (2026-10-23, npm @ironcalc/workbook
+and @ironcalc/wasm 0.9.1), all from webapp/IronCalc/ in that repository:
+
+  src/lib/upstream/   files from webapp/IronCalc/src/, unchanged (one is an
+                      excerpt); src/lib/upstream/UPSTREAM.md lists each file
+                      with its upstream path
+  static/fonts/       Inter font files and OFL.txt from webapp/IronCalc/fonts/
+                      (Inter, Copyright 2020 The Inter Project Authors, SIL
+                      Open Font License 1.1), used by the demo app only
+  src/lib/components/icons/Fx.svelte
+                      the SVG of webapp/IronCalc/src/icons/fx.svg
+
+The Svelte components in src/lib/components/ are ports of the React
+components of webapp/IronCalc/src/components/; each names the upstream file
+it ports. docs/parity.md maps every upstream file to its counterpart.
+
+The engine is not part of this repository: it is used as the npm packages
+@ironcalc/wasm and (optionally) @ironcalc/wasm-xlsx, published by IronCalc
+under MIT OR Apache-2.0.

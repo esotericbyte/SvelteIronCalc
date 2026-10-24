@@ -1,0 +1,30 @@
+@import "tailwindcss";
+@import "@skeletonlabs/skeleton";
+@import "@skeletonlabs/skeleton/themes/cerberus";
+
+/* Skeleton classes used inside the library components */
+@source "./lib";
+@source "../node_modules/@skeletonlabs/skeleton-svelte/dist";
+
+/* Inter, as upstream's app ships it (static/fonts, SIL OFL 1.1) */
+@font-face {
+  font-display: swap;
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/fonts/inter-v13-latin-regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 600;
+  src: url("/fonts/inter-v13-latin-600.woff2") format("woff2");
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
