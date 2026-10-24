@@ -7,8 +7,14 @@ type Messages = { [key: string]: string | Messages };
 
 const messages: Messages = enUs;
 
-/** Returns the English string for a dotted upstream key, or the key itself. */
-export function t(key: string): string {
+/**
+ * Returns the English string for a dotted upstream key, or the key itself.
+ * `{{name}}` placeholders are replaced from `values`, as i18next does.
+ */
+export function t(
+  key: string,
+  values?: Record<string, string | number>,
+): string {
   let node: string | Messages | undefined = messages;
   for (const part of key.split(".")) {
     if (typeof node !== "object") {
@@ -16,5 +22,13 @@ export function t(key: string): string {
     }
     node = node[part];
   }
-  return typeof node === "string" ? node : key;
+  if (typeof node !== "string") {
+    return key;
+  }
+  if (!values) {
+    return node;
+  }
+  return node.replace(/\{\{\s*(\w+)\s*\}\}/g, (placeholder, name: string) =>
+    name in values ? `${values[name]}` : placeholder,
+  );
 }

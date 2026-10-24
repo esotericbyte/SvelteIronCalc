@@ -314,3 +314,32 @@ export function pasteClipboardData(
   // NOT IMPLEMENTED (text/csv, text/html), as upstream
   return true;
 }
+
+/**
+ * Reads the system clipboard for the context menu's Paste, which has no
+ * paste event: every type the browser offers, or only the text where
+ * `clipboard.read()` is unavailable. IronCalc's JSON of the last copy or cut
+ * is added when the clipboard lost it. Rejects when the browser denies
+ * access to the clipboard.
+ */
+export async function readClipboard(
+  lastClipboardJson: string | null,
+): Promise<(mimeType: string) => string> {
+  const data = new Map<string, string>();
+  try {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      for (const type of item.types) {
+        data.set(type, await (await item.getType(type)).text());
+      }
+    }
+  } catch {
+    // fall back to text-only if clipboard.read() is unavailable
+    data.clear();
+    data.set("text/plain", await navigator.clipboard.readText());
+  }
+  if (!data.get("application/json") && lastClipboardJson) {
+    data.set("application/json", lastClipboardJson);
+  }
+  return (mimeType) => data.get(mimeType) ?? "";
+}

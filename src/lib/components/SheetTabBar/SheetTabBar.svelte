@@ -1,14 +1,19 @@
 <!--
   Port of upstream webapp/IronCalc/src/components/SheetTabBar/SheetTabBar.tsx
-  and SheetListMenu.tsx: the sheet list menu and the tabs of the visible
-  sheets. The add-sheet button and the regional settings button come with
-  phases 3 and 5 (see docs/parity.md).
+  and SheetListMenu.tsx: the add-sheet button (while the widget can be
+  edited), the sheet list menu (hidden sheets included, picking one shows
+  it) and the tabs of the visible sheets. The regional settings button
+  comes with phase 5 (see docs/parity.md).
 -->
 <script lang="ts">
+  import type { Color, Model } from "@ironcalc/wasm";
   import MenuIcon from "@lucide/svelte/icons/menu";
-  import Check from "@lucide/svelte/icons/check";
-  import { Menu, Portal } from "@skeletonlabs/skeleton-svelte";
+  import Plus from "@lucide/svelte/icons/plus";
   import { t } from "../../i18n";
+  import IconButton from "../Button/IconButton.svelte";
+  import Menu from "../Menu/Menu.svelte";
+  import MenuItem from "../Menu/MenuItem.svelte";
+  import Tooltip from "../Tooltip/Tooltip.svelte";
   import SheetTab from "./SheetTab.svelte";
   import type { SheetOptions } from "./types";
 
@@ -16,18 +21,52 @@
     sheets: SheetOptions[];
     selectedIndex: number;
     onSheetSelected: (index: number) => void;
+    onAddBlankSheet: () => void;
+    onSheetColorChanged: (color: Color) => void;
+    onSheetRenamed: (name: string) => void;
+    onSheetDeleted: () => void;
+    onSheetDuplicated: () => void;
+    onHideSheet: () => void;
+    onMoveSheet: (fromIndex: number, toIndex: number) => void;
+    model: Model;
+    /** Bumped by the workbook whenever the model changed outside Svelte's view. */
+    version: number;
+    /** When false, sheet add/rename/delete affordances are hidden. */
+    canEdit: boolean;
     /** True while a formula being edited can take a reference to another sheet. */
     isReferenceMode: () => boolean;
+    /** Gives the focus back to the workbook after a dialog closed. */
+    restoreFocus: () => void;
   }
 
-  let { sheets, selectedIndex, onSheetSelected, isReferenceMode }: Props =
-    $props();
+  let {
+    sheets,
+    selectedIndex,
+    onSheetSelected,
+    onAddBlankSheet,
+    onSheetColorChanged,
+    onSheetRenamed,
+    onSheetDeleted,
+    onSheetDuplicated,
+    onHideSheet,
+    onMoveSheet,
+    model,
+    version,
+    canEdit,
+    isReferenceMode,
+    restoreFocus,
+  }: Props = $props();
 
   const visibleSheets = $derived(
     sheets
       .map((sheet, index) => ({ ...sheet, index }))
       .filter((sheet) => sheet.state === "visible"),
   );
+
+  const currentTheme = $derived.by(() => {
+    void version;
+    return model.getTheme();
+  });
 
   function isWhiteColor(color: string): boolean {
     return ["#FFF", "#FFFFFF"].includes(color);
@@ -38,65 +77,64 @@
 
 <div class="ic-sheet-tab-bar-container">
   <div class="ic-sheet-tab-bar-left-buttons-container">
-    <Menu
-      onSelect={(details) => onSheetSelected(Number(details.value))}
-      positioning={{ placement: "top-start" }}
-    >
-      <Menu.Trigger
-        class="ic-sheet-tab-bar-icon-button btn-icon btn-icon-sm hover:preset-tonal"
-        aria-label={t("navigation.sheet_list")}
-        title={t("navigation.sheet_list")}
-      >
-        <MenuIcon />
-      </Menu.Trigger>
-      <Portal>
-        <Menu.Positioner>
-          <Menu.Content
-            class="ic-sheet-list-menu card bg-surface-50-950 shadow-xl p-1 text-xs"
-          >
-            {#each sheets as sheet, index (sheet.sheetId)}
-              <Menu.Item
-                value={`${index}`}
-                class="ic-sheet-list-menu-item btn btn-sm justify-start w-full hover:preset-tonal"
-              >
-                <span class="ic-sheet-list-menu-check">
-                  {#if index === selectedIndex}<Check />{/if}
-                </span>
-                {#if hasColors}
-                  <span
-                    class="ic-sheet-list-menu-color"
-                    style:background-color={sheet.color}
-                  ></span>
-                {/if}
-                <Menu.ItemText>
-                  <span
-                    class={[
-                      index === selectedIndex &&
-                        "ic-sheet-list-menu-name--selected",
-                      sheet.state !== "visible" &&
-                        "ic-sheet-list-menu-name--hidden",
-                    ]}
-                  >
-                    {sheet.name}
-                  </span>
-                </Menu.ItemText>
-              </Menu.Item>
-            {/each}
-          </Menu.Content>
-        </Menu.Positioner>
-      </Portal>
-    </Menu>
+    {#if canEdit}
+      <Tooltip title={t("navigation.add_sheet")}>
+        <IconButton aria-label={t("navigation.add_sheet")} onclick={onAddBlankSheet}>
+          {#snippet icon()}<Plus />{/snippet}
+        </IconButton>
+      </Tooltip>
+    {/if}
+    <Tooltip title={t("navigation.sheet_list")}>
+      <Menu>
+        {#snippet trigger(attributes)}
+          <IconButton {...attributes} aria-label={t("navigation.sheet_list")}>
+            {#snippet icon()}<MenuIcon />{/snippet}
+          </IconButton>
+        {/snippet}
+        {#each sheets as sheet, index (sheet.sheetId)}
+          <MenuItem checked={index === selectedIndex} onClick={() => onSheetSelected(index)}>
+            {#snippet icon()}
+              {#if hasColors}
+                <span
+                  class="ic-sheet-list-menu-color"
+                  style:background-color={sheet.color}
+                ></span>
+              {/if}
+            {/snippet}
+            <span
+              class={[
+                index === selectedIndex && "ic-sheet-list-menu-name--selected",
+                sheet.state !== "visible" && "ic-sheet-list-menu-name--hidden",
+              ]}
+            >
+              {sheet.name}
+            </span>
+          </MenuItem>
+        {/each}
+      </Menu>
+    </Tooltip>
   </div>
   <div class="ic-sheet-tab-bar-vertical-divider"></div>
   <div class="ic-sheet-tab-bar-sheets">
     <div class="ic-sheet-tab-bar-sheet-inner" role="tablist">
       {#each visibleSheets as tab (tab.sheetId)}
         <SheetTab
+          {canEdit}
           name={tab.name}
           color={tab.color}
           selected={tab.index === selectedIndex}
           onSelected={() => onSheetSelected(tab.index)}
+          onColorChanged={onSheetColorChanged}
+          onRenamed={onSheetRenamed}
+          canDelete={visibleSheets.length > 1}
+          onDeleted={onSheetDeleted}
+          onDuplicateSheet={onSheetDuplicated}
+          {onHideSheet}
+          {model}
+          {currentTheme}
+          {onMoveSheet}
           {isReferenceMode}
+          {restoreFocus}
         />
       {/each}
     </div>
@@ -104,6 +142,7 @@
 </div>
 
 <style>
+  /* Port of upstream sheet-tab-bar.css and sheet-list-menu.css */
   .ic-sheet-tab-bar-container {
     display: flex;
     flex-direction: row;
@@ -145,46 +184,24 @@
     color: var(--palette-common-black);
   }
 
-  .ic-sheet-tab-bar-left-buttons-container :global(svg) {
-    width: 16px;
-    height: 16px;
-  }
-
   .ic-sheet-tab-bar-vertical-divider {
     height: 100%;
     width: 0;
   }
 
-  :global(.ic-sheet-list-menu) {
-    min-width: 160px;
-    max-height: 60vh;
-    overflow-y: auto;
-    z-index: 1300;
-  }
-
-  :global(.ic-sheet-list-menu-check) {
-    display: inline-flex;
-    width: 14px;
-  }
-
-  :global(.ic-sheet-list-menu-check svg) {
-    width: 14px;
-    height: 14px;
-  }
-
   :global(.ic-sheet-list-menu-color) {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 4px;
+    flex-shrink: 0;
   }
 
   :global(.ic-sheet-list-menu-name--selected) {
-    font-weight: 600;
+    font-weight: 700;
   }
 
   :global(.ic-sheet-list-menu-name--hidden) {
-    opacity: 0.6;
+    color: var(--palette-grey-400);
   }
 
   @media (max-width: 769px) {

@@ -25,6 +25,7 @@ Copyright 2023 EqualTo GmbH, 2023 - Present IronCalc contributors,
 | `components/types.ts` | `src/components/types.ts` | unchanged |
 | `components/clipboard.ts` | `src/components/clipboard.ts` | unchanged |
 | `components/LinkDialog/util.ts` | `src/components/LinkDialog/util.ts` | unchanged |
+| `components/ColorPicker/util.ts` | `src/components/ColorPicker/util.ts` | unchanged |
 | `components/Editor/util.ts` | `src/components/Editor/util.tsx`, lines 1-9, 23-29, 61-150 and 339-446 | excerpt, verbatim: everything but `getFormulaHTML` (which renders JSX), its private helpers and the React import; those are ported in `src/lib/components/Editor/formulaHTML.ts` |
 | `components/FormulaHelper/formulaCompletion.ts` | `src/components/FormulaHelper/formulaCompletion.ts` | unchanged |
 | `components/FormulaHelper/functions.json` | `src/components/FormulaHelper/functions.json` | unchanged |

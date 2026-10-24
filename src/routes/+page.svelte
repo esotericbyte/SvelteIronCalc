@@ -1,7 +1,9 @@
 <!--
   Development demo: open an .xlsx file (or the generated sample) in the
   widget, edit it, and download the model back as .xlsx. The lock button
-  switches the widget to read-only (`canEdit={false}`).
+  switches the widget to read-only (`canEdit={false}`). Right-click the
+  cells, the column or row headers and the sheet tabs for their menus;
+  going back to the sample asks first, with the exported Confirm dialog.
 -->
 <script lang="ts">
   import Download from "@lucide/svelte/icons/download";
@@ -12,7 +14,7 @@
   import Moon from "@lucide/svelte/icons/moon";
   import Sun from "@lucide/svelte/icons/sun";
   import { onMount } from "svelte";
-  import { darkThemeVariables, init, IronCalc, type Model } from "$lib";
+  import { Confirm, darkThemeVariables, init, IronCalc, type Model } from "$lib";
   import { downloadXlsx, initXlsx, modelFromXlsx } from "$lib/xlsx";
   import { buildSampleWorkbook } from "./sampleWorkbook";
 
@@ -23,6 +25,7 @@
   let dark = $state(false);
   let readOnly = $state(false);
   let fileInput: HTMLInputElement | null = $state(null);
+  let confirmSample = $state(false);
 
   onMount(async () => {
     try {
@@ -78,11 +81,7 @@
       type="button"
       class="btn btn-sm preset-tonal"
       disabled={loading}
-      onclick={() => {
-        model = buildSampleWorkbook();
-        fileName = "sample.xlsx";
-        error = null;
-      }}
+      onclick={() => (confirmSample = true)}
     >
       <FileSpreadsheet size={16} /> Sample
     </button>
@@ -117,6 +116,19 @@
   {#if error}
     <div class="preset-tonal-error px-4 py-2 text-sm" role="alert">{error}</div>
   {/if}
+  <Confirm
+    open={confirmSample}
+    onClose={() => (confirmSample = false)}
+    onConfirm={() => {
+      model = buildSampleWorkbook();
+      fileName = "sample.xlsx";
+      error = null;
+    }}
+    title="Open the sample?"
+    message="The workbook shown is replaced by the sample; download it first to keep your changes."
+    confirmLabel="Open the sample"
+    variant="destructive"
+  />
   <main class="relative min-h-0 flex-1">
     {#if loading}
       <p class="p-4">Loading the engine…</p>

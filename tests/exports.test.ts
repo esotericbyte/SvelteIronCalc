@@ -3,10 +3,21 @@ import * as lib from "../src/lib";
 import * as xlsx from "../src/lib/xlsx";
 
 describe("package entry points", () => {
-  it("exports the widget and the engine helpers", () => {
+  it("exports the widget, its UI primitives and the engine helpers", () => {
     expect(Object.keys(lib).sort()).toEqual([
+      "Button",
+      "Checkbox",
+      "Confirm",
+      "IconButton",
+      "Input",
       "IronCalc",
+      "Menu",
+      "MenuDivider",
+      "MenuItem",
+      "MenuItemWithSubmenu",
       "Model",
+      "ToggleButton",
+      "Tooltip",
       "Workbook",
       "WorkbookState",
       "darkThemeVariables",

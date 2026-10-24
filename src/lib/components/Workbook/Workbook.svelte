@@ -1,9 +1,11 @@
 <!--
   Port of upstream webapp/IronCalc/src/components/Workbook/Workbook.tsx:
-  formula bar, worksheet and sheet tabs, keyboard navigation and the edit
+  formula bar, worksheet and sheet tabs, keyboard navigation, the edit
   actions (typing and F2 to edit, Delete, undo/redo, the bold/italic/underline
-  shortcuts, copy, cut and paste, copying styles). The toolbar, the right
-  drawer and the link dialog come in later phases (docs/parity.md).
+  shortcuts, copy, cut and paste, copying styles), the clipboard entries of
+  the cell context menu and the sheet management of the tab bar. The
+  toolbar, the right drawer and the link dialog come in later phases
+  (docs/parity.md).
 
   Keyboard handling stays inside the widget: the only key listener is on the
   focusable container below, and it ignores events whose target is anything
@@ -11,7 +13,7 @@
   keep their keys).
 -->
 <script lang="ts">
-  import type { Model } from "@ironcalc/wasm";
+  import type { Color, Model } from "@ironcalc/wasm";
   import { t } from "../../i18n";
   import { isInReferenceMode } from "../../upstream/components/Editor/util";
   import type { NavigationKey } from "../../upstream/components/util";
@@ -30,6 +32,7 @@
     getSelectedStyles,
     getSheetOptions,
     pasteClipboardData,
+    readClipboard,
     selectNextSheet,
     selectPreviousSheet,
     selectSheet,
@@ -91,11 +94,16 @@
   }
 
   // Upstream takes the focus back on every render while no cell is being
-  // edited. Here it is taken back only when an edit ends and the focus is
-  // still inside the widget or nowhere (the editor was hidden), so a click
-  // that ended the edit by focusing something outside the widget keeps it.
+  // edited. Here it is taken back only when an edit ends, or a menu or
+  // dialog of the widget closes, and the focus is still inside the widget
+  // or nowhere (the editor or menu was removed), so a click that focused
+  // something outside the widget keeps it.
   function onEditEnd(): void {
     refresh();
+    restoreFocus();
+  }
+
+  function restoreFocus(): void {
     setTimeout(() => {
       if (workbookState.getEditingCell()) {
         return;
@@ -330,6 +338,49 @@
     event.stopPropagation();
   }
 
+  // Pastes data read from the clipboard, as the paste event does
+  function pasteData(getData: (mimeType: string) => string): void {
+    if (!canEdit) {
+      return;
+    }
+    workbookState.clearCutRange();
+    try {
+      if (pasteClipboardData(model, getData)) {
+        refresh();
+      }
+    } catch (e) {
+      showPasteError(e);
+    }
+  }
+
+  // The cell context menu's Paste: there is no paste event, so the
+  // clipboard is read through the Clipboard API
+  async function handlePaste(): Promise<void> {
+    focusWorkbook();
+    let getData: (mimeType: string) => string;
+    try {
+      getData = await readClipboard(lastClipboardJson);
+    } catch {
+      alertDialog = {
+        title: t("error_dialog.error_paste"),
+        message: t("error_dialog.error_clipboard_paste"),
+      };
+      return;
+    }
+    pasteData(getData);
+  }
+
+  // A rejected sheet change (e.g. a name already taken) shows the engine's
+  // error, which upstream puts in a window.alert
+  function trySheetChange(change: () => void): void {
+    try {
+      change();
+    } catch (e) {
+      alertDialog = { title: `${e}`.replace(/^Error: /, ""), message: "" };
+    }
+    refresh();
+  }
+
   /** Re-reads the model; call after changing it from outside the widget. */
   export function redraw(): void {
     refresh();
@@ -379,8 +430,21 @@
       {refresh}
       canEdit={canEdit && view.canEditFormula}
       {onEditEnd}
+      onCut={() => {
+        focusWorkbook();
+        document.execCommand("cut");
+      }}
+      onCopy={() => {
+        focusWorkbook();
+        document.execCommand("copy");
+      }}
+      onPaste={handlePaste}
+      {restoreFocus}
     />
     <SheetTabBar
+      {canEdit}
+      {model}
+      {version}
       sheets={view.sheets}
       selectedIndex={view.selectedSheet}
       onSheetSelected={(sheet) => {
@@ -397,6 +461,29 @@
           cell !== null && isInReferenceMode(model, cell.text, cell.cursorStart)
         );
       }}
+      onAddBlankSheet={() => {
+        model.newSheet();
+        refresh();
+      }}
+      onSheetColorChanged={(color: Color) => {
+        trySheetChange(() => model.setSheetColor(model.getSelectedSheet(), color));
+      }}
+      onSheetRenamed={(name: string) => {
+        trySheetChange(() => model.renameSheet(model.getSelectedSheet(), name));
+      }}
+      onSheetDeleted={() => {
+        trySheetChange(() => model.deleteSheet(model.getSelectedSheet()));
+      }}
+      onSheetDuplicated={() => {
+        trySheetChange(() => model.duplicateSheet(model.getSelectedSheet()));
+      }}
+      onHideSheet={() => {
+        trySheetChange(() => model.hideSheet(model.getSelectedSheet()));
+      }}
+      onMoveSheet={(fromIndex: number, toIndex: number) => {
+        trySheetChange(() => model.moveSheet(fromIndex, toIndex));
+      }}
+      {restoreFocus}
     />
   </div>
   <Alert

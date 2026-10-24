@@ -6,17 +6,21 @@
   Like upstream, a fresh WorksheetCanvas is built over the same elements on
   every refresh: the renderer is written for that.
 
-  The context menus and the column width / row height dialogs come with
-  phase 3 (see docs/parity.md).
+  A right click opens the context menu of the cell, the column headers or
+  the row headers (only while the widget can be edited, as upstream), after
+  selecting what was clicked unless it is already in the selection. The
+  column width and row height entries ask for the size in a Prompt.
 -->
 <script lang="ts">
-  import type { Model } from "@ironcalc/wasm";
+  import { columnNameFromNumber, type Model } from "@ironcalc/wasm";
   import { onDestroy, untrack } from "svelte";
   import { t } from "../../i18n";
   import type { Cell } from "../../upstream/components/types";
   import { getEditorSize } from "../../upstream/components/util";
   import type { LinkHoverCell } from "../../upstream/components/WorksheetCanvas/cellLinks";
   import {
+    headerColumnWidth,
+    headerRowHeight,
     LAST_COLUMN,
     LAST_ROW,
   } from "../../upstream/components/WorksheetCanvas/constants";
@@ -24,6 +28,11 @@
   import type { WorkbookState } from "../../upstream/components/workbookState";
   import Editor from "../Editor/Editor.svelte";
   import Alert from "../Modal/Alert.svelte";
+  import Prompt from "../Modal/Prompt.svelte";
+  import CellContextMenu from "./ContextMenus/CellContextMenu.svelte";
+  import ColumnHeaderContextMenu from "./ContextMenus/ColumnHeaderContextMenu.svelte";
+  import RowHeaderContextMenu from "./ContextMenus/RowHeaderContextMenu.svelte";
+  import type { HeaderRange } from "./ContextMenus/types";
   import LinkTooltip from "./LinkTooltip.svelte";
   import { createPointerHandlers } from "./pointer";
 
@@ -37,10 +46,26 @@
     canEdit: boolean;
     /** Called when an edit in the cell editor ends. */
     onEditEnd: () => void;
+    /** The cell context menu's clipboard entries. */
+    onCut: () => void;
+    onCopy: () => void;
+    onPaste: () => void;
+    /** Gives the focus back to the workbook after a menu or dialog closed. */
+    restoreFocus: () => void;
   }
 
-  let { model, workbookState, version, refresh, canEdit, onEditEnd }: Props =
-    $props();
+  let {
+    model,
+    workbookState,
+    version,
+    refresh,
+    canEdit,
+    onEditEnd,
+    onCut,
+    onCopy,
+    onPaste,
+    restoreFocus,
+  }: Props = $props();
 
   let scrollElement: HTMLDivElement | null = $state(null);
   let spacerElement: HTMLDivElement | null = $state(null);
@@ -60,6 +85,54 @@
 
   // The raw engine error of a rejected autofill (localized when rendered)
   let autofillError: string | null = $state(null);
+
+  let cellContextMenuOpen = $state(false);
+  let colHeaderContextMenuOpen = $state(false);
+  let rowHeaderContextMenuOpen = $state(false);
+  let contextMenuPosition: { x: number; y: number } | null = $state(null);
+  let rowColErrorTitle: string | null = $state(null);
+  let columnWidthDialogOpen = $state(false);
+  let columnWidthDefault = $state("");
+  let rowHeightDialogOpen = $state(false);
+  let rowHeightDefault = $state("");
+
+  // What the context menus show about the selection
+  const selection = $derived.by(() => {
+    void version;
+    const view = model.getSelectedView();
+    const [rowStart, columnStart, rowEnd, columnEnd] = view.range;
+    const range: HeaderRange = {
+      rowStart,
+      columnStart: columnNameFromNumber(columnStart),
+      rowEnd,
+      columnEnd: columnNameFromNumber(columnEnd),
+      columnCount: columnEnd - columnStart + 1,
+    };
+    return {
+      column: columnNameFromNumber(view.column),
+      row: view.row,
+      range,
+      frozenColumnsCount: model.getFrozenColumnsCount(view.sheet),
+      frozenRowsCount: model.getFrozenRowsCount(view.sheet),
+    };
+  });
+
+  // Counted only while the column menu is open: a selected row spans every
+  // column of the sheet
+  const hiddenColumnsCount = $derived.by(() => {
+    void version;
+    if (!colHeaderContextMenuOpen) {
+      return 0;
+    }
+    const { sheet, range } = model.getSelectedView();
+    let count = 0;
+    for (let column = range[1]; column <= range[3]; column++) {
+      if (model.getColumnWidth(sheet, column) === 0) {
+        count += 1;
+      }
+    }
+    return count;
+  });
 
   const editingText = $derived.by(() => {
     void version;
@@ -364,6 +437,139 @@
     lastModelScroll = { x: model.getScrollX(), y: model.getScrollY() };
   }
 
+  function onContextMenu(event: MouseEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    // The context menus only offer editing actions (insert/delete,
+    // cut/paste), so they are not shown in read-only mode.
+    if (!canEdit) {
+      return;
+    }
+
+    // Store mouse position for menu placement
+    contextMenuPosition = { x: event.clientX, y: event.clientY };
+
+    // Detect if right-click is on column header or row header
+    const canvas = canvasElement;
+    if (canvas) {
+      const canvasRect = canvas.getBoundingClientRect();
+      const x = event.clientX - canvasRect.x;
+      const y = event.clientY - canvasRect.y;
+
+      // Check if click is in column header area
+      if (
+        x > headerColumnWidth &&
+        x < canvasRect.width &&
+        y > 0 &&
+        y < headerRowHeight
+      ) {
+        const view = model.getSelectedView();
+        const [rowStart, columnStart, rowEnd, columnEnd] = view.range;
+        const cell = worksheetCanvas?.getCellByCoordinates(x, headerRowHeight);
+        const column = cell?.column ?? view.column;
+        if (
+          !(rowStart === 1 && rowEnd === LAST_ROW) ||
+          !(columnStart <= column && column <= columnEnd)
+        ) {
+          // No columns are selected, or the click is outside them: select
+          // the column clicked on
+          model.setSelectedCell(1, column);
+          model.setSelectedRange(1, column, LAST_ROW, column);
+          refresh();
+        }
+        colHeaderContextMenuOpen = true;
+        return;
+      }
+
+      // Check if click is in row header area
+      if (
+        x > 0 &&
+        x < headerColumnWidth &&
+        y > headerRowHeight &&
+        y < canvasRect.height
+      ) {
+        const view = model.getSelectedView();
+        const [rowStart, columnStart, rowEnd, columnEnd] = view.range;
+        const cell = worksheetCanvas?.getCellByCoordinates(headerColumnWidth, y);
+        const row = cell?.row ?? view.row;
+        if (
+          !(columnStart === 1 && columnEnd === LAST_COLUMN) ||
+          !(rowStart <= row && row <= rowEnd)
+        ) {
+          // No rows are selected, or the click is outside them: select the
+          // row clicked on
+          model.setSelectedCell(row, 1);
+          model.setSelectedRange(row, 1, row, LAST_COLUMN);
+          refresh();
+        }
+        rowHeaderContextMenuOpen = true;
+        return;
+      }
+
+      // Cell area: select the clicked cell unless it is in the selection
+      const cell = worksheetCanvas?.getCellByCoordinates(x, y);
+      if (cell) {
+        const [rowStart, columnStart, rowEnd, columnEnd] =
+          model.getSelectedView().range;
+        if (
+          !(
+            rowStart <= cell.row &&
+            cell.row <= rowEnd &&
+            columnStart <= cell.column &&
+            cell.column <= columnEnd
+          )
+        ) {
+          model.setSelectedCell(cell.row, cell.column);
+          refresh();
+        }
+      }
+    }
+
+    cellContextMenuOpen = true;
+  }
+
+  /** Runs a structural change; a rejected one shows `errorKey` in an alert. */
+  function tryChange(change: () => void, errorKey: string): void {
+    try {
+      change();
+    } catch {
+      rowColErrorTitle = t(errorKey);
+    }
+    refresh();
+  }
+
+  function closeMenus(): void {
+    cellContextMenuOpen = false;
+    colHeaderContextMenuOpen = false;
+    rowHeaderContextMenuOpen = false;
+    // The menu had the focus; give it back to the sheet unless the chosen
+    // entry opened a dialog (which takes it, and gives it back on close)
+    if (!columnWidthDialogOpen && !rowHeightDialogOpen && rowColErrorTitle === null) {
+      restoreFocus();
+    }
+  }
+
+  function selectedColumns(): { sheet: number; start: number; count: number; column: number } {
+    const view = model.getSelectedView();
+    return {
+      sheet: view.sheet,
+      start: view.range[1],
+      count: view.range[3] - view.range[1] + 1,
+      column: view.column,
+    };
+  }
+
+  function selectedRows(): { sheet: number; start: number; count: number; row: number } {
+    const view = model.getSelectedView();
+    return {
+      sheet: view.sheet,
+      start: view.range[0],
+      count: view.range[2] - view.range[0] + 1,
+      row: view.row,
+    };
+  }
+
   /** The renderer of the visible sheet, for callers such as image export. */
   export function getCanvas(): WorksheetCanvas | null {
     return worksheetCanvas;
@@ -383,11 +589,7 @@
     onpointerdown={pointer.onPointerDown}
     onpointermove={pointer.onPointerMove}
     onpointerup={pointer.onPointerUp}
-    oncontextmenu={(event) => {
-      // The context menus come with phase 3; until then none is shown
-      event.preventDefault();
-      event.stopPropagation();
-    }}
+    oncontextmenu={onContextMenu}
     ondblclick={(event) => {
       // Starts editing cell
       if (!canEdit) {
@@ -463,6 +665,251 @@
     message={autofillError?.includes("merged cell")
       ? t("error_dialog.error_autofill_merged")
       : t("error_dialog.error_autofill_array")}
+  />
+  <CellContextMenu
+    open={cellContextMenuOpen}
+    onClose={closeMenus}
+    anchorPosition={contextMenuPosition}
+    column={selection.column}
+    row={selection.row}
+    onCut={() => {
+      cellContextMenuOpen = false;
+      onCut();
+    }}
+    onCopy={() => {
+      cellContextMenuOpen = false;
+      onCopy();
+    }}
+    onPaste={() => {
+      cellContextMenuOpen = false;
+      onPaste();
+    }}
+    onInsertColumnLeft={() => {
+      const view = model.getSelectedView();
+      tryChange(
+        () => model.insertColumns(view.sheet, view.column, 1),
+        "error_dialog.error_inserting_columns",
+      );
+    }}
+    onInsertColumnRight={() => {
+      const view = model.getSelectedView();
+      tryChange(
+        () => model.insertColumns(view.sheet, view.range[3] + 1, 1),
+        "error_dialog.error_inserting_columns",
+      );
+    }}
+    onInsertRowAbove={() => {
+      const view = model.getSelectedView();
+      tryChange(
+        () => model.insertRows(view.sheet, view.row, 1),
+        "error_dialog.error_inserting_rows",
+      );
+    }}
+    onInsertRowBelow={() => {
+      const view = model.getSelectedView();
+      tryChange(
+        () => model.insertRows(view.sheet, view.range[2] + 1, 1),
+        "error_dialog.error_inserting_rows",
+      );
+    }}
+    onDeleteColumn={() => {
+      const view = model.getSelectedView();
+      tryChange(
+        () => model.deleteColumns(view.sheet, view.column, 1),
+        "error_dialog.error_deleting_columns",
+      );
+    }}
+    onDeleteRow={() => {
+      const view = model.getSelectedView();
+      tryChange(
+        () => model.deleteRows(view.sheet, view.row, 1),
+        "error_dialog.error_deleting_rows",
+      );
+    }}
+  />
+  <ColumnHeaderContextMenu
+    open={colHeaderContextMenuOpen}
+    onClose={closeMenus}
+    anchorPosition={contextMenuPosition}
+    range={selection.range}
+    frozenColumnsCount={selection.frozenColumnsCount}
+    {hiddenColumnsCount}
+    onInsertColumnsLeft={() => {
+      const { sheet, column, count } = selectedColumns();
+      tryChange(
+        () => model.insertColumns(sheet, column, count),
+        "error_dialog.error_inserting_columns",
+      );
+    }}
+    onInsertColumnsRight={() => {
+      const { sheet, start, count } = selectedColumns();
+      tryChange(
+        () => model.insertColumns(sheet, start + count, count),
+        "error_dialog.error_inserting_columns",
+      );
+    }}
+    onMoveColumnsLeft={() => {
+      const { sheet, start, count } = selectedColumns();
+      tryChange(
+        () => model.moveColumns(sheet, start, count, -1),
+        "error_dialog.error_moving_columns",
+      );
+    }}
+    onMoveColumnsRight={() => {
+      const { sheet, start, count } = selectedColumns();
+      tryChange(
+        () => model.moveColumns(sheet, start, count, 1),
+        "error_dialog.error_moving_columns",
+      );
+    }}
+    onSetColumnWidth={() => {
+      const { sheet, start } = selectedColumns();
+      columnWidthDefault = `${model.getColumnWidth(sheet, start)}`;
+      columnWidthDialogOpen = true;
+    }}
+    onFreezeColumns={() => {
+      const { sheet, column } = selectedColumns();
+      model.setFrozenColumnsCount(sheet, column);
+      refresh();
+    }}
+    onUnfreezeColumns={() => {
+      model.setFrozenColumnsCount(model.getSelectedSheet(), 0);
+      refresh();
+    }}
+    onDeleteColumns={() => {
+      const { sheet, start, count } = selectedColumns();
+      tryChange(
+        () => model.deleteColumns(sheet, start, count),
+        "error_dialog.error_deleting_columns",
+      );
+    }}
+    onHideColumns={() => {
+      const { sheet, start, count } = selectedColumns();
+      model.setColumnsHidden(sheet, start, start + count - 1, true);
+      refresh();
+    }}
+    onShowHiddenColumns={() => {
+      const { sheet, start, count } = selectedColumns();
+      model.setColumnsHidden(sheet, start, start + count - 1, false);
+      refresh();
+    }}
+  />
+  <RowHeaderContextMenu
+    open={rowHeaderContextMenuOpen}
+    onClose={closeMenus}
+    anchorPosition={contextMenuPosition}
+    range={selection.range}
+    frozenRowsCount={selection.frozenRowsCount}
+    onInsertRowsAbove={() => {
+      const { sheet, row, count } = selectedRows();
+      tryChange(
+        () => model.insertRows(sheet, row, count),
+        "error_dialog.error_inserting_rows",
+      );
+    }}
+    onInsertRowsBelow={() => {
+      const { sheet, row, count } = selectedRows();
+      tryChange(
+        () => model.insertRows(sheet, row + 1, count),
+        "error_dialog.error_inserting_rows",
+      );
+    }}
+    onMoveRowsUp={() => {
+      const { sheet, start, count } = selectedRows();
+      tryChange(
+        () => model.moveRows(sheet, start, count, -1),
+        "error_dialog.error_moving_rows",
+      );
+    }}
+    onMoveRowsDown={() => {
+      const { sheet, start, count } = selectedRows();
+      tryChange(
+        () => model.moveRows(sheet, start, count, 1),
+        "error_dialog.error_moving_rows",
+      );
+    }}
+    onSetRowHeight={() => {
+      const { sheet, start } = selectedRows();
+      rowHeightDefault = `${model.getRowHeight(sheet, start)}`;
+      rowHeightDialogOpen = true;
+    }}
+    onFreezeRows={() => {
+      const { sheet, row } = selectedRows();
+      model.setFrozenRowsCount(sheet, row);
+      refresh();
+    }}
+    onUnfreezeRows={() => {
+      model.setFrozenRowsCount(model.getSelectedSheet(), 0);
+      refresh();
+    }}
+    onDeleteRows={() => {
+      const { sheet, start, count } = selectedRows();
+      tryChange(
+        () => model.deleteRows(sheet, start, count),
+        "error_dialog.error_deleting_rows",
+      );
+    }}
+    onHideRows={() => {
+      const { sheet, start, count } = selectedRows();
+      model.setRowsHidden(sheet, start, start + count - 1, true);
+      refresh();
+    }}
+    onShowHiddenRows={() => {
+      const { sheet, start, count } = selectedRows();
+      model.setRowsHidden(sheet, start, start + count - 1, false);
+      refresh();
+    }}
+  />
+  <Alert
+    open={rowColErrorTitle !== null}
+    onClose={() => {
+      rowColErrorTitle = null;
+      restoreFocus();
+    }}
+    title={rowColErrorTitle ?? ""}
+    message={rowColErrorTitle ?? ""}
+  />
+  <Prompt
+    open={columnWidthDialogOpen}
+    onClose={() => {
+      columnWidthDialogOpen = false;
+      restoreFocus();
+    }}
+    title={t("context_menu.column_header.set_column_width")}
+    confirmLabel={t("common.apply")}
+    cancelLabel={t("common.cancel")}
+    defaultValue={columnWidthDefault}
+    inputProps={{ type: "number", min: 0, step: "any", endAdornment: "px" }}
+    onSubmit={(value) => {
+      const newWidth = Number.parseFloat(value);
+      if (!Number.isFinite(newWidth) || newWidth < 0) {
+        return;
+      }
+      const { sheet, start, count } = selectedColumns();
+      model.setColumnsWidth(sheet, start, start + count - 1, newWidth);
+      refresh();
+    }}
+  />
+  <Prompt
+    open={rowHeightDialogOpen}
+    onClose={() => {
+      rowHeightDialogOpen = false;
+      restoreFocus();
+    }}
+    title={t("context_menu.row_header.set_row_height")}
+    confirmLabel={t("common.apply")}
+    cancelLabel={t("common.cancel")}
+    defaultValue={rowHeightDefault}
+    inputProps={{ type: "number", min: 0, step: "any", endAdornment: "px" }}
+    onSubmit={(value) => {
+      const newHeight = Number.parseFloat(value);
+      if (!Number.isFinite(newHeight) || newHeight < 0) {
+        return;
+      }
+      const { sheet, start, count } = selectedRows();
+      model.setRowsHeight(sheet, start, start + count - 1, newHeight);
+      refresh();
+    }}
   />
 </div>
 

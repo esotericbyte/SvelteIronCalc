@@ -49,10 +49,12 @@ The plain-TypeScript renderer and the runtime state are carried over unchanged i
 | Cell editor and formula bar editor, formula highlighting, reference insertion by keys and by pointing (also on other sheets), F4 cycling, Alt+Enter, Ctrl+Shift+Enter array formulas | `Editor/`, `Worksheet/usePointer.ts`, `SheetTabBar/SheetTab.tsx` | ported | 2 |
 | Function autocomplete and help | `FormulaHelper/` | ported | 2 |
 | Typing to edit, F2, double click, Delete, undo/redo, bold/italic/underline shortcuts | `useKeyboardNavigation.ts`, `Workbook.tsx`, `Worksheet.tsx` | ported | 2 |
-| Paste and cut, autofill handle, copy styles (format painter) | `Workbook.tsx`, `outlineHandle.ts` | ported (the format painter is the `copyStyles()` method of `Workbook` until the toolbar button lands in phase 4; pasting from the context menu comes with it in phase 3) | 2 |
-| Context menus: insert, delete, move, hide and freeze rows and columns; set width and height | `Worksheet/ContextMenus/`, `Worksheet.tsx` | planned | 3 |
-| Sheet management: add, rename, color, duplicate, hide, move, delete | `SheetTabBar/` | planned | 3 |
-| Alert, confirm and prompt dialogs | `Modal/` | partial (the alert, used by editing errors, came with phase 2) | 2 / 3 |
+| Paste and cut, autofill handle, copy styles (format painter) | `Workbook.tsx`, `outlineHandle.ts` | ported (the format painter is the `copyStyles()` method of `Workbook` until the toolbar button lands in phase 4) | 2 |
+| Context menus: insert, delete, move, hide and freeze rows and columns; set width and height; cut, copy and paste | `Worksheet/ContextMenus/`, `Worksheet.tsx`, `Workbook.tsx` | ported | 3 |
+| Sheet management: add, rename, color, duplicate, hide, move, delete | `SheetTabBar/`, `Workbook.tsx` | ported (a rejected change shows an Alert where upstream calls `window.alert`) | 3 |
+| Color picker and advanced color picker | `ColorPicker/`, `AdvancedColorPicker.tsx/` | ported (pulled forward from phase 4 for the sheet tab colors; the advanced picker is a Svelte saturation and hue picker in place of react-colorful) | 3 |
+| Alert, confirm and prompt dialogs | `Modal/` | ported (the alert, used by editing errors, came with phase 2) | 2 / 3 |
+| UI primitives exported for consumers (Button, IconButton, Checkbox, Input, Menu, MenuItem, MenuItemWithSubmenu, MenuDivider, Confirm, ToggleButton, Tooltip) | `index.ts`, `Button/`, `Checkbox/`, `Input/`, `Menu/`, `Modal/`, `ToggleButton/`, `Tooltip/` | ported (thin Svelte components over Skeleton; React elements become snippets) | 3 |
 | Toolbar: undo/redo, font, size, colors, alignment, wrap, borders, merge, number formats, grid lines, clear formatting, PNG export | `Toolbar/`, pickers | planned | 4 |
 | Links: insert and edit dialog | `LinkDialog/` | planned | 4 |
 | Workbook themes menu | `ThemeMenu/` | planned | 4 |
@@ -75,13 +77,15 @@ Port `Editor/` (the shared cell and formula-bar editor, its key handling and for
 
 As landed: the plain-TypeScript parts are carried (`formulaCompletion.ts`, `functions.json`, everything of `Editor/util.tsx` but `getFormulaHTML`), `getFormulaHTML` returns plain segments that `Editor.svelte` renders instead of JSX, and the alert dialog was pulled forward from phase 3 because the editing errors (formula, paste, delete, autofill) need it. The four tests, plus upstream's `docsUrl` test of the same module, live in `tests/upstream/` and differ from upstream only in import paths, the engine set-up and, for `getFormulaHTML`, the helpers that read a segment instead of a React element. The demo app edits the chosen workbook and downloads it as xlsx, and has a read-only switch.
 
-### 4.3 Phase 3: structure, menus and dialogs
+### 4.3 Phase 3: structure, menus and dialogs (landed)
 
 The worksheet context menus (cell, column header, row header), the column width and row height prompts, the sheet tab menu, renaming, coloring and deleting sheets, the add-sheet button, and the alert, confirm and prompt dialogs. The shared primitives they need (`Button`, `IconButton`, `Menu`, `MenuItem`, `Tooltip`, `Input`, `Checkbox`, `Textarea`) map to Skeleton components and classes rather than being re-implemented; the public exports upstream offers for them are added as thin Svelte components where consumers rely on them.
 
+As landed: the menus are Skeleton (zag) menus, which bring the keyboard handling, positioning and outside-press dismissal upstream writes by hand; a context menu is a menu controlled at the pointer, and a submenu is a nested menu. The dialogs share `ModalDialog.svelte`, a Skeleton dialog that the phase 2 alert now uses too. Coloring a sheet needs the color picker, so `ColorPicker/` and the advanced picker were pulled forward from phase 4, with upstream's `ColorPicker/util.ts` carried unchanged and react-colorful replaced by a small Svelte picker. The exported primitives are `Button`, `IconButton`, `Checkbox`, `Input`, `Menu`, `MenuItem`, `MenuItemWithSubmenu`, `MenuDivider`, `Confirm`, `ToggleButton` and `Tooltip` (`Textarea` and `Prompt` are ported but, as upstream, not exported); where upstream takes React elements they take snippets. The translation lookup gained i18next's `{{name}}` interpolation for the menu labels. Widget tests cover the three context menus, the size prompts, the sheet tab menu, renaming, the color pickers and the primitives; the demo asks with the exported `Confirm` before replacing the open workbook with the sample.
+
 ### 4.4 Phase 4: toolbar and formatting pickers
 
-The toolbar and everything it opens: the color picker and advanced color picker, the border picker, the number format menu, the icon picker, the theme menu, merge options, PNG export, and the link dialog. Upstream's custom SVG icons become Svelte icon components where Lucide has no match.
+The toolbar and everything it opens: the color pickers (ported with phase 3, reused here), the border picker, the number format menu, the icon picker, the theme menu, merge options, PNG export, and the link dialog. Upstream's custom SVG icons become Svelte icon components where Lucide has no match.
 
 ### 4.5 Phase 5: the right drawer
 
@@ -98,27 +102,27 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | Upstream file | Lines | Svelte counterpart | Status | Phase | Notes |
 | --- | --- | --- | --- | --- | --- |
 | `src/IronCalc.tsx` | 76 | `src/lib/components/IronCalc.svelte` | ported | 1 / 2 | the widget's own element is the `.ic-root` (upstream defaults to `document.body`); `canEdit` came with phase 2, the `setLanguage` handle comes with phase 6 |
-| `src/components/AdvancedColorPicker.tsx/AdvancedColorPicker.tsx` | 233 |  | planned | 4 | toolbar and formatting pickers |
-| `src/components/AdvancedColorPicker.tsx/advanced-color-picker.css` | 135 |  | planned | 4 | toolbar and formatting pickers |
-| `src/components/AdvancedColorPicker.tsx/useKeyDown.ts` | 54 |  | planned | 4 | toolbar and formatting pickers |
+| `src/components/AdvancedColorPicker.tsx/AdvancedColorPicker.tsx` | 233 | `src/lib/components/AdvancedColorPicker/AdvancedColorPicker.svelte`, `HexColorPicker.svelte`, `hsv.ts` | ported | 3 | pulled forward from phase 4 with the color picker; react-colorful's `HexColorPicker` and `HexColorInput` become `HexColorPicker.svelte` (saturation area and hue bar, pointer and arrow keys) and a plain hex field; upstream's recent-colors list, which nothing reads, is left out |
+| `src/components/AdvancedColorPicker.tsx/advanced-color-picker.css` | 135 | src/lib/components/AdvancedColorPicker/AdvancedColorPicker.svelte (`<style>`) | ported | 3 | with the menu layer of `index.css`; the react-colorful overrides are the styles of `HexColorPicker.svelte` |
+| `src/components/AdvancedColorPicker.tsx/useKeyDown.ts` | 54 | src/lib/components/AdvancedColorPicker/AdvancedColorPicker.svelte (`onKeyDown`) | ported | 3 | same keys (Escape, Tab cycling) |
 | `src/components/BorderPicker/BorderPicker.tsx` | 361 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/BorderPicker/LineStylePicker.tsx` | 46 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/BorderPicker/border-picker.css` | 75 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/BorderPicker/line-style-picker.css` | 88 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/Button/Button.stories.tsx` | 177 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Button/Button.tsx` | 75 |  | planned | 3 | Skeleton `btn` classes / `SegmentedControl` |
+| `src/components/Button/Button.tsx` | 75 | `src/lib/components/Button/Button.svelte` | ported | 3 | variants and sizes map to Skeleton `btn` classes and presets (`buttonClasses.ts`); the icons are snippets; `ref` is bindable |
 | `src/components/Button/IconButton.stories.tsx` | 198 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Button/IconButton.tsx` | 60 |  | planned | 3 | Skeleton `btn` classes / `SegmentedControl` |
-| `src/components/Button/button.css` | 156 |  | planned | 3 | Skeleton `btn` classes / `SegmentedControl` |
+| `src/components/Button/IconButton.tsx` | 60 | `src/lib/components/Button/IconButton.svelte` | ported | 3 | a Skeleton `btn-icon`; the icon is a snippet |
+| `src/components/Button/button.css` | 156 | `src/lib/components/Button/buttonClasses.ts` | ported | 3 | replaced by Skeleton classes and presets |
 | `src/components/Checkbox/Checkbox.stories.tsx` | 80 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Checkbox/Checkbox.tsx` | 69 |  | planned | 3 | Skeleton form classes |
-| `src/components/Checkbox/checkbox.css` | 76 |  | planned | 3 | Skeleton form classes |
+| `src/components/Checkbox/Checkbox.tsx` | 69 | `src/lib/components/Checkbox/Checkbox.svelte` | ported | 3 | Skeleton `checkbox` class |
+| `src/components/Checkbox/checkbox.css` | 76 | Skeleton `checkbox` class | ported | 3 | replaced by the Skeleton class |
 | `src/components/ColorPicker/ColorPicker.stories.tsx` | 105 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/ColorPicker/ColorPicker.tsx` | 316 |  | planned | 4 | toolbar and formatting pickers |
-| `src/components/ColorPicker/color-picker.css` | 172 |  | planned | 4 | toolbar and formatting pickers |
-| `src/components/ColorPicker/useAnchorPosition.ts` | 104 |  | planned | 4 | toolbar and formatting pickers |
-| `src/components/ColorPicker/useKeyDown.ts` | 159 |  | planned | 4 | toolbar and formatting pickers |
-| `src/components/ColorPicker/util.ts` | 128 |  | planned | 4 | toolbar and formatting pickers |
+| `src/components/ColorPicker/ColorPicker.tsx` | 316 | `src/lib/components/ColorPicker/ColorPicker.svelte` | ported | 3 | pulled forward from phase 4: sheet tab colors need it; the toolbar's color pickers reuse it in phase 4. `anchorEl` is a getter instead of a ref |
+| `src/components/ColorPicker/color-picker.css` | 172 | src/lib/components/ColorPicker/ColorPicker.svelte (`<style>`) | ported | 3 |  |
+| `src/components/ColorPicker/useAnchorPosition.ts` | 104 | `src/lib/components/ColorPicker/anchorPosition.ts` | ported | 3 | the hook becomes a Svelte attachment; the positioning is unchanged |
+| `src/components/ColorPicker/useKeyDown.ts` | 159 | `src/lib/components/ColorPicker/colorPickerKeyDown.ts` | ported | 3 | the hook becomes a handler factory; the key map is unchanged |
+| `src/components/ColorPicker/util.ts` | 128 | `src/lib/upstream/components/ColorPicker/util.ts` | carried | 3 | unchanged |
 | `src/components/Editor/Editor.stories.tsx` | 108 |  | not ported | - | Storybook story; the demo app plays this role |
 | `src/components/Editor/Editor.tsx` | 444 | `src/lib/components/Editor/Editor.svelte` | ported | 2 | the caret is tracked on keyup, mouseup and select (upstream relies on React's onSelect, which also fires on caret moves); the worksheet also asks the editor to fit its box right before positioning it, as React's child-first effects do upstream |
 | `src/components/Editor/editor.css` | 36 | src/lib/components/Editor/Editor.svelte (`<style>`) | ported | 2 | upstream's inline styles are classes there too |
@@ -141,27 +145,27 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/IconPicker/IconPicker.tsx` | 160 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/IconPicker/icon-picker.css` | 48 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/Input/Input.stories.tsx` | 200 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Input/Input.tsx` | 215 |  | planned | 3 | Skeleton form classes |
-| `src/components/Input/input.css` | 223 |  | planned | 3 | Skeleton form classes |
+| `src/components/Input/Input.tsx` | 215 | `src/lib/components/Input/Input.svelte` | ported | 3 | Skeleton `label`, `input` and `input-group` classes; `value` and `ref` are bindable instead of `onChange` and a forwarded ref; the number input's stepper is kept |
+| `src/components/Input/input.css` | 223 | Skeleton `input` and `input-group` classes | ported | 3 | replaced by the Skeleton classes |
 | `src/components/LinkDialog/LinkDialog.tsx` | 375 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/LinkDialog/link-dialog.css` | 19 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/LinkDialog/util.ts` | 120 | `src/lib/upstream/components/LinkDialog/util.ts` | carried | 1 | unchanged |
 | `src/components/Menu/Menu.stories.tsx` | 377 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Menu/Menu.tsx` | 176 |  | planned | 3 | Skeleton `Menu` |
-| `src/components/Menu/MenuDivider.tsx` | 5 |  | planned | 3 | Skeleton `Menu` |
-| `src/components/Menu/MenuItem.tsx` | 240 |  | planned | 3 | Skeleton `Menu` |
-| `src/components/Menu/menu.css` | 104 |  | planned | 3 | Skeleton `Menu` |
-| `src/components/Menu/useAnchorPosition.ts` | 72 |  | planned | 3 | Skeleton `Menu` |
-| `src/components/Menu/useMenuKeyDown.ts` | 72 |  | planned | 3 | Skeleton `Menu` |
-| `src/components/Modal/Alert.tsx` | 76 | `src/lib/components/Modal/Alert.svelte` | ported | 2 | a Skeleton `Dialog`, which brings the focus trap, Escape and focus restoring of `ModalDialog`, `useModalFocus` and `useModalKeyDown`; pulled forward from phase 3 for the editing errors |
-| `src/components/Modal/Confirm.tsx` | 96 |  | planned | 3 | Skeleton `Dialog` |
+| `src/components/Menu/Menu.tsx` | 176 | `src/lib/components/Menu/Menu.svelte`, `menuContext.ts` | ported | 3 | a Skeleton `Menu`, controlled at a point (`positioning.getAnchorRect`) or opened by a trigger snippet that spreads the trigger attributes; items report their clicks through a per-menu handler registry, as zag reports a selection by value |
+| `src/components/Menu/MenuDivider.tsx` | 5 | `src/lib/components/Menu/MenuDivider.svelte` | ported | 3 | Skeleton `Menu.Separator` |
+| `src/components/Menu/MenuItem.tsx` | 240 | `src/lib/components/Menu/MenuItem.svelte`, `MenuItemWithSubmenu.svelte` | ported | 3 | Skeleton `Menu.Item`; the submenu is a nested Skeleton `Menu` (zag handles the hover intent and the keys) |
+| `src/components/Menu/menu.css` | 104 | src/lib/components/Menu/Menu.svelte, MenuItem.svelte, MenuDivider.svelte (`<style>`) | ported | 3 | the hover and focus states key on zag's `data-highlighted` |
+| `src/components/Menu/useAnchorPosition.ts` | 72 | Skeleton `Menu` positioning | ported | 3 | replaced by Skeleton's positioner, which also flips to stay in the viewport |
+| `src/components/Menu/useMenuKeyDown.ts` | 72 | Skeleton `Menu` keyboard handling | ported | 3 | replaced by Skeleton's menu keys (arrows, Home/End, typeahead, Escape, ArrowLeft/Right for submenus) |
+| `src/components/Modal/Alert.tsx` | 76 | `src/lib/components/Modal/Alert.svelte` | ported | 2 / 3 | pulled forward to phase 2 for the editing errors; built on `ModalDialog.svelte` since phase 3 |
+| `src/components/Modal/Confirm.tsx` | 96 | `src/lib/components/Modal/Confirm.svelte` | ported | 3 | on `ModalDialog.svelte`; exported, as upstream |
 | `src/components/Modal/Modal.stories.tsx` | 96 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Modal/ModalDialog.tsx` | 54 |  | planned | 3 | Skeleton `Dialog` |
-| `src/components/Modal/Prompt.tsx` | 124 |  | planned | 3 | Skeleton `Dialog` |
-| `src/components/Modal/index.ts` | 3 |  | planned | 3 | Skeleton `Dialog` |
-| `src/components/Modal/modal-dialog.css` | 73 |  | planned | 3 | Skeleton `Dialog` |
-| `src/components/Modal/useModalFocus.ts` | 31 |  | planned | 3 | Skeleton `Dialog` |
-| `src/components/Modal/useModalKeyDown.ts` | 50 |  | planned | 3 | Skeleton `Dialog` |
+| `src/components/Modal/ModalDialog.tsx` | 54 | `src/lib/components/Modal/ModalDialog.svelte` | ported | 3 | a Skeleton `Dialog` portaled into the `.ic-root`; it also holds the header (title, close button) and the footer the three dialogs share |
+| `src/components/Modal/Prompt.tsx` | 124 | `src/lib/components/Modal/Prompt.svelte` | ported | 3 | on `ModalDialog.svelte`; Enter in the field moves to the submit button and Escape closes, as upstream |
+| `src/components/Modal/index.ts` | 3 |  | not ported | - | re-export only |
+| `src/components/Modal/modal-dialog.css` | 73 | src/lib/components/Modal/ModalDialog.svelte (Skeleton `card` classes) | ported | 3 | replaced by Skeleton classes |
+| `src/components/Modal/useModalFocus.ts` | 31 | Skeleton `Dialog` | ported | 3 | replaced by the Skeleton dialog's initial focus and focus restoring |
+| `src/components/Modal/useModalKeyDown.ts` | 50 | Skeleton `Dialog`, src/lib/components/Modal/ModalDialog.svelte | ported | 3 | Escape and the Tab trap come from the Skeleton dialog; Ctrl/Cmd+Enter confirms in `ModalDialog.svelte` |
 | `src/components/README.md` | 11 |  | not ported | - | upstream documentation |
 | `src/components/RightDrawer/ConditionalFormatting/ClassicRule.tsx` | 371 |  | planned | 5 | right drawer |
 | `src/components/RightDrawer/ConditionalFormatting/ColorScaleRule.tsx` | 417 |  | planned | 5 | right drawer |
@@ -199,42 +203,42 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/Select/Select.tsx` | 404 |  | planned | 4 | Skeleton `Combobox` / native select |
 | `src/components/Select/dropdown-menu.css` | 63 |  | planned | 4 | Skeleton `Combobox` / native select |
 | `src/components/Select/select.css` | 155 |  | planned | 4 | Skeleton `Combobox` / native select |
-| `src/components/SheetTabBar/SheetDeleteModal.tsx` | 33 |  | planned | 3 | Skeleton `Dialog` |
-| `src/components/SheetTabBar/SheetListMenu.tsx` | 68 | src/lib/components/SheetTabBar/SheetTabBar.svelte (Skeleton `Menu`) | ported | 1 |  |
-| `src/components/SheetTabBar/SheetTab.tsx` | 294 | `src/lib/components/SheetTabBar/SheetTab.svelte` | partial | 1 / 3 | selecting, and keeping the editor focused while pointing at another sheet, ported; rename, tab menu and color picker in phase 3 |
-| `src/components/SheetTabBar/SheetTabBar.tsx` | 142 | `src/lib/components/SheetTabBar/SheetTabBar.svelte` | partial | 1 / 3 | tabs and sheet list ported; add-sheet button in phase 3, regional settings button in phase 5 |
-| `src/components/SheetTabBar/SheetTabMenu.tsx` | 68 |  | planned | 3 | Skeleton `Menu` |
+| `src/components/SheetTabBar/SheetDeleteModal.tsx` | 33 | `src/lib/components/SheetTabBar/SheetDeleteModal.svelte` | ported | 3 |  |
+| `src/components/SheetTabBar/SheetListMenu.tsx` | 68 | src/lib/components/SheetTabBar/SheetTabBar.svelte (`Menu`, `MenuItem`) | ported | 1 / 3 | rebuilt on the Menu primitives in phase 3; when the list opens Skeleton highlights its first sheet, where upstream focuses the selected one |
+| `src/components/SheetTabBar/SheetTab.tsx` | 294 | `src/lib/components/SheetTabBar/SheetTab.svelte` | ported | 1 / 3 | selecting and pointing at another sheet (phase 1); renaming in place, the tab menu, the color picker and the delete dialog (phase 3). Closing the menu gives the focus back to its button unless the chosen entry opened the color picker or the delete dialog |
+| `src/components/SheetTabBar/SheetTabBar.tsx` | 142 | `src/lib/components/SheetTabBar/SheetTabBar.svelte` | partial | 1 / 3 / 5 | tabs and sheet list (phase 1) and the add-sheet button (phase 3) ported; the regional settings button comes with phase 5 |
+| `src/components/SheetTabBar/SheetTabMenu.tsx` | 68 | `src/lib/components/SheetTabBar/SheetTabMenu.svelte` | ported | 3 |  |
 | `src/components/SheetTabBar/index.ts` | 1 |  | not ported | - | re-export only |
-| `src/components/SheetTabBar/sheet-list-menu.css` | 14 | src/lib/components/SheetTabBar/SheetTabBar.svelte (`<style>`) | ported | 1 |  |
+| `src/components/SheetTabBar/sheet-list-menu.css` | 14 | src/lib/components/SheetTabBar/SheetTabBar.svelte (`<style>`) | ported | 1 / 3 |  |
 | `src/components/SheetTabBar/sheet-tab-bar.css` | 98 | src/lib/components/SheetTabBar/SheetTabBar.svelte (`<style>`) | ported | 1 |  |
-| `src/components/SheetTabBar/sheet-tab.css` | 108 | src/lib/components/SheetTabBar/SheetTab.svelte (`<style>`) | partial | 1 / 3 | rename-input styles come with renaming |
+| `src/components/SheetTabBar/sheet-tab.css` | 108 | src/lib/components/SheetTabBar/SheetTab.svelte (`<style>`) | ported | 1 / 3 | the rename field and menu button styles came with phase 3 |
 | `src/components/SheetTabBar/types.ts` | 6 | `src/lib/components/SheetTabBar/types.ts` | ported | 1 | copied unchanged |
 | `src/components/Switch/Switch.stories.tsx` | 82 |  | not ported | - | Storybook story; the demo app plays this role |
 | `src/components/Switch/Switch.tsx` | 73 |  | planned | 5 | Skeleton `Switch` |
 | `src/components/Switch/switch.css` | 78 |  | planned | 5 | Skeleton `Switch` |
 | `src/components/Textarea/Textarea.stories.tsx` | 113 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Textarea/Textarea.tsx` | 103 |  | planned | 3 | Skeleton form classes |
-| `src/components/Textarea/textarea.css` | 128 |  | planned | 3 | Skeleton form classes |
+| `src/components/Textarea/Textarea.tsx` | 103 | `src/lib/components/Textarea/Textarea.svelte` | ported | 3 | Skeleton `label` and `textarea` classes; `value` is bindable; not exported, as upstream |
+| `src/components/Textarea/textarea.css` | 128 | Skeleton `textarea` class | ported | 3 | replaced by the Skeleton class |
 | `src/components/ThemeMenu/ThemeMenu.tsx` | 76 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/ThemeMenu/theme-menu.css` | 20 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/ToggleButton/ToggleButton.stories.tsx` | 216 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/ToggleButton/ToggleButton.tsx` | 111 |  | planned | 3 | Skeleton `btn` classes / `SegmentedControl` |
-| `src/components/ToggleButton/toggle-button.css` | 64 |  | planned | 3 | Skeleton `btn` classes / `SegmentedControl` |
+| `src/components/ToggleButton/ToggleButton.tsx` | 111 | `src/lib/components/ToggleButton/ToggleButton.svelte` | ported | 3 | ghost Buttons in a Skeleton `btn-group`; labels and icons are strings or snippets |
+| `src/components/ToggleButton/toggle-button.css` | 64 | Skeleton `btn-group` and presets | ported | 3 | replaced by Skeleton classes |
 | `src/components/Toolbar/Toolbar.tsx` | 782 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/Toolbar/toolbar.css` | 127 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/Tooltip/Tooltip.stories.tsx` | 143 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Tooltip/Tooltip.tsx` | 67 |  | planned | 3 | Skeleton `Tooltip` |
-| `src/components/Tooltip/tooltip.css` | 32 |  | planned | 3 | Skeleton `Tooltip` |
-| `src/components/Tooltip/useTooltipPosition.ts` | 64 |  | planned | 3 | Skeleton `Tooltip` |
+| `src/components/Tooltip/Tooltip.tsx` | 67 | `src/lib/components/Tooltip/Tooltip.svelte` | ported | 3 | Skeleton `Tooltip` over a wrapping span, as upstream |
+| `src/components/Tooltip/tooltip.css` | 32 | src/lib/components/Tooltip/Tooltip.svelte (`<style>`) | ported | 3 |  |
+| `src/components/Tooltip/useTooltipPosition.ts` | 64 | Skeleton `Tooltip` positioning | ported | 3 | replaced by Skeleton's positioner (above, flipping below) |
 | `src/components/Workbook/Workbook.stories.tsx` | 83 | src/routes/+page.svelte (demo) | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Workbook/Workbook.tsx` | 1233 | src/lib/components/Workbook/Workbook.svelte, workbookModel.ts | partial | 1 / 2-5 | formula bar, sheet tabs, navigation and edit keys, undo/redo, Delete, the font shortcuts, copy, cut, paste and copy styles ported; the context menu's clipboard paste (phase 3), the toolbar handlers, merging, PNG export and the link dialog (phase 4) and the drawer wiring (phase 5) planned |
+| `src/components/Workbook/Workbook.tsx` | 1233 | src/lib/components/Workbook/Workbook.svelte, workbookModel.ts | partial | 1 / 2-5 | formula bar, sheet tabs, navigation and edit keys, undo/redo, Delete, the font shortcuts, copy, cut, paste and copy styles (phases 1 and 2), the sheet management handlers and the context menu's cut, copy and paste (phase 3) ported; the toolbar handlers, merging, PNG export and the link dialog (phase 4) and the drawer wiring (phase 5) planned. A rejected sheet change (a name already taken, ...) shows the engine's error in an Alert where upstream calls `window.alert`; a denied clipboard is titled "Cannot paste" where upstream reuses "Failed to delete cells"; the context menu's Paste reads the clipboard into the paste handler directly instead of dispatching a synthetic paste event |
 | `src/components/Workbook/useKeyboardNavigation.ts` | 291 | `src/lib/components/Workbook/keyboardNavigation.ts` | ported | 1 | same key map; the edit keys follow `canEdit` |
 | `src/components/Workbook/workbook.css` | 23 | src/lib/components/Workbook/Workbook.svelte (`<style>`) | ported | 1 |  |
-| `src/components/Worksheet/ContextMenus/Cell.tsx` | 103 |  | planned | 3 | Skeleton `Menu` (context trigger) |
-| `src/components/Worksheet/ContextMenus/ColumnHeader.tsx` | 145 |  | planned | 3 | Skeleton `Menu` (context trigger) |
-| `src/components/Worksheet/ContextMenus/RowHeader.tsx` | 124 |  | planned | 3 | Skeleton `Menu` (context trigger) |
+| `src/components/Worksheet/ContextMenus/Cell.tsx` | 103 | `src/lib/components/Worksheet/ContextMenus/CellContextMenu.svelte` | ported | 3 |  |
+| `src/components/Worksheet/ContextMenus/ColumnHeader.tsx` | 145 | `src/lib/components/Worksheet/ContextMenus/ColumnHeaderContextMenu.svelte` | ported | 3 |  |
+| `src/components/Worksheet/ContextMenus/RowHeader.tsx` | 124 | `src/lib/components/Worksheet/ContextMenus/RowHeaderContextMenu.svelte` | ported | 3 |  |
 | `src/components/Worksheet/LinkTooltip.tsx` | 144 | `src/lib/components/Worksheet/LinkTooltip.svelte` | partial | 1 / 4 | follow and copy ported; edit and break-link actions come with the link dialog |
-| `src/components/Worksheet/Worksheet.tsx` | 988 | `src/lib/components/Worksheet/Worksheet.svelte` | partial | 1 / 3 | canvas, scrolling, selection, resize handles, link tooltip, cell editor, double click to edit, pasting copied styles and the autofill error dialog ported; context menus and the size dialogs planned (phase 3) |
+| `src/components/Worksheet/Worksheet.tsx` | 988 | `src/lib/components/Worksheet/Worksheet.svelte` | partial | 1 / 4 | canvas, scrolling, selection, resize handles, link tooltip, cell editor, double click to edit, pasting copied styles and the autofill error dialog (phases 1 and 2), the context menus, their error dialog and the column width and row height prompts (phase 3) ported; the link tooltip's edit and delete wiring comes with the link dialog (phase 4). After a menu or dialog closes the focus goes back to the workbook, where upstream refocuses it on every render |
 | `src/components/Worksheet/usePointer.ts` | 390 | `src/lib/components/Worksheet/pointer.ts` | ported | 1 / 2 | the hook becomes a handler factory |
 | `src/components/Worksheet/worksheet.css` | 258 | src/lib/components/Worksheet/Worksheet.svelte, LinkTooltip.svelte (`<style>`) | ported | 1 |  |
 | `src/components/WorksheetCanvas/cellLinks.ts` | 253 | `src/lib/upstream/components/WorksheetCanvas/cellLinks.ts` | carried | 1 | unchanged |
@@ -251,7 +255,7 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/util.ts` | 322 | `src/lib/upstream/components/util.ts` | carried | 1 | unchanged |
 | `src/components/utils/useMenuPosition.ts` | 107 | `src/lib/components/utils/menuPosition.ts` | ported | 2 | the hook becomes a Svelte attachment; the positioning is unchanged |
 | `src/components/workbookState.ts` | 199 | `src/lib/upstream/components/workbookState.ts` | carried | 1 | unchanged |
-| `src/i18n.ts` | 25 | `src/lib/i18n.ts` | partial | 1 / 6 | English lookup over the carried `en_us.json`; language switching in phase 6 |
+| `src/i18n.ts` | 25 | `src/lib/i18n.ts` | partial | 1 / 6 | English lookup over the carried `en_us.json`, with `{{name}}` interpolation since phase 3; language switching in phase 6 |
 | `src/icons/arrow-middle-from-line.svg` | 14 |  | planned | 4 | icon component |
 | `src/icons/border-bottom.svg` | 6 |  | planned | 4 | icon component |
 | `src/icons/border-center-h.svg` | 4 |  | planned | 4 | icon component |
@@ -274,7 +278,7 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/icons/ironcalc_icon_white.svg` | 7 |  | planned | 4 | icon component |
 | `src/icons/orange+black.svg` | 8 |  | planned | 4 | icon component |
 | `src/index.css` | 18 | src/lib/components/IronCalc.svelte (`<style>`) | ported | 1 |  |
-| `src/index.ts` | 45 | `src/lib/index.ts` | partial | 1 / 4 | exports the widget, `init`, `Model` and theme helpers; the UI primitives upstream exports (Button, Menu, ...) follow when ported |
+| `src/index.ts` | 45 | `src/lib/index.ts` | partial | 1 / 3 / 4 / 5 | exports the widget, `init`, `Model`, the theme helpers and (phase 3) the UI primitives upstream exports: `Button`, `IconButton`, `Checkbox`, `Input`, `Menu`, `MenuItem`, `MenuItemWithSubmenu`, `MenuDivider`, `Confirm`, `ToggleButton`, `Tooltip` and their property types; the icons follow in phase 4 and `Switch` in phase 5 |
 | `src/locale/de_de.json` | 460 |  | planned | 6 | i18n |
 | `src/locale/en_us.json` | 460 | `src/lib/upstream/locale/en_us.json` | carried | 1 | unchanged; English strings for phase 1 |
 | `src/locale/es_es.json` | 460 |  | planned | 6 | i18n |
