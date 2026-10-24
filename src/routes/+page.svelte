@@ -1,11 +1,14 @@
 <!--
   Development demo: open an .xlsx file (or the generated sample) in the
-  read-only widget and download the model back as .xlsx.
+  widget, edit it, and download the model back as .xlsx. The lock button
+  switches the widget to read-only (`canEdit={false}`).
 -->
 <script lang="ts">
   import Download from "@lucide/svelte/icons/download";
   import FileSpreadsheet from "@lucide/svelte/icons/file-spreadsheet";
   import FolderOpen from "@lucide/svelte/icons/folder-open";
+  import Lock from "@lucide/svelte/icons/lock";
+  import LockOpen from "@lucide/svelte/icons/lock-open";
   import Moon from "@lucide/svelte/icons/moon";
   import Sun from "@lucide/svelte/icons/sun";
   import { onMount } from "svelte";
@@ -18,6 +21,7 @@
   let error: string | null = $state(null);
   let loading = $state(true);
   let dark = $state(false);
+  let readOnly = $state(false);
   let fileInput: HTMLInputElement | null = $state(null);
 
   onMount(async () => {
@@ -93,6 +97,16 @@
     <button
       type="button"
       class="btn-icon btn-icon-sm preset-tonal"
+      aria-label={readOnly ? "Allow editing" : "Make read-only"}
+      aria-pressed={readOnly}
+      title={readOnly ? "Allow editing" : "Make read-only"}
+      onclick={() => (readOnly = !readOnly)}
+    >
+      {#if readOnly}<Lock size={16} />{:else}<LockOpen size={16} />{/if}
+    </button>
+    <button
+      type="button"
+      class="btn-icon btn-icon-sm preset-tonal"
       aria-label={dark ? "Light theme" : "Dark theme"}
       title={dark ? "Light theme" : "Dark theme"}
       onclick={() => (dark = !dark)}
@@ -107,7 +121,11 @@
     {#if loading}
       <p class="p-4">Loading the engine…</p>
     {:else if model}
-      <IronCalc {model} themeVariables={dark ? darkThemeVariables : undefined} />
+      <IronCalc
+        {model}
+        canEdit={!readOnly}
+        themeVariables={dark ? darkThemeVariables : undefined}
+      />
     {/if}
   </main>
 </div>

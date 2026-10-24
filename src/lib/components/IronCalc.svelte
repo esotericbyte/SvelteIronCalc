@@ -15,6 +15,7 @@
     unsetThemeVariables,
   } from "../upstream/theme";
   import { WorkbookState } from "../upstream/components/workbookState";
+  import { setRootElement } from "./rootContext";
   import Workbook from "./Workbook/Workbook.svelte";
 
   interface Props {
@@ -22,11 +23,14 @@
     model: Model;
     /** Overrides of the theme's CSS variables, e.g. `darkThemeVariables`. */
     themeVariables?: PartialIronCalcThemeVariables;
+    /** When false, the formula bar is read-only and all edits are blocked. */
+    canEdit?: boolean;
   }
 
-  let { model, themeVariables }: Props = $props();
+  let { model, themeVariables, canEdit = true }: Props = $props();
 
   let rootElement: HTMLDivElement | null = $state(null);
+  setRootElement(() => rootElement);
   let workbook: Workbook | null = $state(null);
 
   // A new model gets fresh runtime state, as upstream does on every mount
@@ -57,7 +61,7 @@
 
 <div class="ic-root ic-widget" bind:this={rootElement}>
   {#key model}
-    <Workbook bind:this={workbook} {model} {workbookState} />
+    <Workbook bind:this={workbook} {model} {workbookState} {canEdit} />
   {/key}
 </div>
 

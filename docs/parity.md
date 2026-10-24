@@ -37,21 +37,22 @@ The plain-TypeScript renderer and the runtime state are carried over unchanged i
 | Merged cells | `worksheetCanvas.ts`, `components/util.ts` | carried | 1 |
 | Cell, range, row, column and whole-sheet selection with the pointer | `Worksheet/usePointer.ts` | ported | 1 |
 | Keyboard navigation (arrows, Tab, Enter, Home/End, PageUp/Down, Ctrl+arrows, Shift+arrows, Ctrl/Shift+Space, Alt+Up/Down) | `Workbook/useKeyboardNavigation.ts` | ported | 1 |
-| Keys handled only while the widget has focus | `Workbook/Workbook.tsx` | ported (upstream also refocuses on every render; this port only takes focus on a click inside the widget) | 1 |
+| Keys handled only while the widget has focus | `Workbook/Workbook.tsx` | ported (upstream also refocuses on every render; this port takes focus on a click inside the widget, and back when an edit ends while the focus is inside the widget or nowhere) | 1 / 2 |
 | Sheet tabs and the sheet list menu (hidden sheets listed) | `SheetTabBar/` | ported | 1 |
 | Read-only formula bar (address, formula or value, array formulas in braces) | `FormulaBar/FormulaBar.tsx`, `Workbook.tsx` | ported | 1 |
 | Cell links: hover tooltip, follow, copy; Ctrl+click follows | `Worksheet/LinkTooltip.tsx`, `WorksheetCanvas/cellLinks.ts` | ported / carried | 1 |
 | Column width and row height by dragging header edges | `worksheetCanvas.ts` | carried (upstream allows it read-only too) | 1 |
 | Copy the selection (text and IronCalc JSON) | `Workbook.tsx` | ported | 1 |
+| Read-only mode (`canEdit`, default true) | `IronCalc.tsx`, `Workbook.tsx` | ported | 2 |
 | Theme variables, dark theme | `theme/` | carried | 1 |
 | Load from xlsx, save as xlsx | app-level in upstream | `ironcalc-svelte/xlsx` | 1 |
-| Cell editor and formula bar editor, formula highlighting, reference insertion by pointing, F4 cycling | `Editor/` | planned | 2 |
-| Function autocomplete and help | `FormulaHelper/` | planned | 2 |
-| Typing to edit, F2, Delete, undo/redo, bold/italic/underline shortcuts | `useKeyboardNavigation.ts`, `Workbook.tsx` | planned | 2 |
-| Paste and cut, autofill handle, copy styles (format painter) | `Workbook.tsx`, `outlineHandle.ts` | planned | 2 |
+| Cell editor and formula bar editor, formula highlighting, reference insertion by keys and by pointing (also on other sheets), F4 cycling, Alt+Enter, Ctrl+Shift+Enter array formulas | `Editor/`, `Worksheet/usePointer.ts`, `SheetTabBar/SheetTab.tsx` | ported | 2 |
+| Function autocomplete and help | `FormulaHelper/` | ported | 2 |
+| Typing to edit, F2, double click, Delete, undo/redo, bold/italic/underline shortcuts | `useKeyboardNavigation.ts`, `Workbook.tsx`, `Worksheet.tsx` | ported | 2 |
+| Paste and cut, autofill handle, copy styles (format painter) | `Workbook.tsx`, `outlineHandle.ts` | ported (the format painter is the `copyStyles()` method of `Workbook` until the toolbar button lands in phase 4; pasting from the context menu comes with it in phase 3) | 2 |
 | Context menus: insert, delete, move, hide and freeze rows and columns; set width and height | `Worksheet/ContextMenus/`, `Worksheet.tsx` | planned | 3 |
 | Sheet management: add, rename, color, duplicate, hide, move, delete | `SheetTabBar/` | planned | 3 |
-| Alert, confirm and prompt dialogs | `Modal/` | planned | 3 |
+| Alert, confirm and prompt dialogs | `Modal/` | partial (the alert, used by editing errors, came with phase 2) | 2 / 3 |
 | Toolbar: undo/redo, font, size, colors, alignment, wrap, borders, merge, number formats, grid lines, clear formatting, PNG export | `Toolbar/`, pickers | planned | 4 |
 | Links: insert and edit dialog | `LinkDialog/` | planned | 4 |
 | Workbook themes menu | `ThemeMenu/` | planned | 4 |
@@ -64,13 +65,15 @@ The plain-TypeScript renderer and the runtime state are carried over unchanged i
 
 ## 4. Phases
 
-### 4.1 Phase 1: read-only sheet (this phase)
+### 4.1 Phase 1: read-only sheet (landed)
 
 The package scaffold, the carried renderer, and a read-only `IronCalc` widget: canvas, scrolling, selection, frozen panes, merged cells, sheet tabs, a read-only formula bar, link tooltips, copy, theme variables, and xlsx load and save helpers. The demo app opens a user-chosen .xlsx file.
 
-### 4.2 Phase 2: editing and the cell editor
+### 4.2 Phase 2: editing and the cell editor (landed)
 
 Port `Editor/` (the shared cell and formula-bar editor, its key handling and formula highlighting), the rest of `Editor/util.tsx` (carried where it is plain TypeScript, with `getFormulaHTML` rewritten for Svelte), `FormulaHelper/` with `functions.json` and `formulaCompletion.ts`, and the editing branches of `usePointer.ts` (pointing at cells to insert references). Wire the edit keys, undo/redo, Delete, paste and cut, the autofill handle and copy styles in `Workbook`, and add the `canEdit` prop (default true, like upstream). Port upstream's unit tests that cover these helpers (`getFormulaHTML`, `isInReferenceMode`, `applyListCompletion`, `snapFillExtent`).
+
+As landed: the plain-TypeScript parts are carried (`formulaCompletion.ts`, `functions.json`, everything of `Editor/util.tsx` but `getFormulaHTML`), `getFormulaHTML` returns plain segments that `Editor.svelte` renders instead of JSX, and the alert dialog was pulled forward from phase 3 because the editing errors (formula, paste, delete, autofill) need it. The four tests, plus upstream's `docsUrl` test of the same module, live in `tests/upstream/` and differ from upstream only in import paths, the engine set-up and, for `getFormulaHTML`, the helpers that read a segment instead of a React element. The demo app edits the chosen workbook and downloads it as xlsx, and has a read-only switch.
 
 ### 4.3 Phase 3: structure, menus and dialogs
 
@@ -94,7 +97,7 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 
 | Upstream file | Lines | Svelte counterpart | Status | Phase | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `src/IronCalc.tsx` | 76 | `src/lib/components/IronCalc.svelte` | ported | 1 | the widget's own element is the `.ic-root` (upstream defaults to `document.body`); `canEdit` and the `setLanguage` handle come with phases 2 and 6 |
+| `src/IronCalc.tsx` | 76 | `src/lib/components/IronCalc.svelte` | ported | 1 / 2 | the widget's own element is the `.ic-root` (upstream defaults to `document.body`); `canEdit` came with phase 2, the `setLanguage` handle comes with phase 6 |
 | `src/components/AdvancedColorPicker.tsx/AdvancedColorPicker.tsx` | 233 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/AdvancedColorPicker.tsx/advanced-color-picker.css` | 135 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/AdvancedColorPicker.tsx/useKeyDown.ts` | 54 |  | planned | 4 | toolbar and formatting pickers |
@@ -117,23 +120,23 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/ColorPicker/useKeyDown.ts` | 159 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/ColorPicker/util.ts` | 128 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/Editor/Editor.stories.tsx` | 108 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Editor/Editor.tsx` | 444 |  | planned | 2 | cell and formula editor |
-| `src/components/Editor/editor.css` | 36 |  | planned | 2 | cell and formula editor |
-| `src/components/Editor/useKeyDown.ts` | 717 |  | planned | 2 | cell and formula editor |
-| `src/components/Editor/util.tsx` | 448 | `src/lib/upstream/components/Editor/util.ts` | partial | 1 / 2 | `getColor` carried verbatim (the renderer needs it); formula highlighting and reference-mode helpers come with the cell editor |
+| `src/components/Editor/Editor.tsx` | 444 | `src/lib/components/Editor/Editor.svelte` | ported | 2 | the caret is tracked on keyup, mouseup and select (upstream relies on React's onSelect, which also fires on caret moves); the worksheet also asks the editor to fit its box right before positioning it, as React's child-first effects do upstream |
+| `src/components/Editor/editor.css` | 36 | src/lib/components/Editor/Editor.svelte (`<style>`) | ported | 2 | upstream's inline styles are classes there too |
+| `src/components/Editor/useKeyDown.ts` | 717 | `src/lib/components/Editor/editorKeyDown.ts` | ported | 2 | the hook becomes a handler factory; the key map is unchanged |
+| `src/components/Editor/util.tsx` | 448 | `src/lib/upstream/components/Editor/util.ts`, `src/lib/components/Editor/formulaHTML.ts` | carried / ported | 1 / 2 | everything but `getFormulaHTML` is carried verbatim; `getFormulaHTML` and its private helpers are ported, returning segments instead of JSX |
 | `src/components/FormatMenu/FormatMenu.tsx` | 177 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/FormatMenu/FormatPicker.tsx` | 30 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/FormatMenu/format-menu.css` | 13 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/FormatMenu/formatUtil.ts` | 42 |  | planned | 4 | toolbar and formatting pickers |
-| `src/components/FormulaBar/FormulaBar.tsx` | 118 | `src/lib/components/FormulaBar/FormulaBar.svelte` | partial | 1 / 2 | read-only address and value; editing in phase 2, the address menu in phase 5 |
+| `src/components/FormulaBar/FormulaBar.tsx` | 118 | `src/lib/components/FormulaBar/FormulaBar.svelte` | partial | 1 / 5 | address and formula editor ported; the address box is a plain label until the named-ranges menu (phase 5) |
 | `src/components/FormulaBar/FormulaBarMenu.tsx` | 198 |  | planned | 5 | named-ranges menu behind the address box |
 | `src/components/FormulaBar/formula-bar-menu.css` | 105 |  | planned | 5 | named-ranges menu behind the address box |
 | `src/components/FormulaBar/formula-bar.css` | 101 | src/lib/components/FormulaBar/FormulaBar.svelte (`<style>`) | ported | 1 |  |
 | `src/components/FormulaHelper/FormulaHelper.stories.tsx` | 137 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/FormulaHelper/FormulaHelper.tsx` | 240 |  | planned | 2 | cell and formula editor |
-| `src/components/FormulaHelper/formulaCompletion.ts` | 176 |  | planned | 2 | cell and formula editor |
-| `src/components/FormulaHelper/formulaHelper.css` | 143 |  | planned | 2 | cell and formula editor |
-| `src/components/FormulaHelper/functions.json` | 7371 |  | planned | 2 | cell and formula editor |
+| `src/components/FormulaHelper/FormulaHelper.tsx` | 240 | `src/lib/components/FormulaHelper/FormulaHelper.svelte` | ported | 2 | the collapse button is a Skeleton `btn-icon` with Lucide's `ChevronUp` |
+| `src/components/FormulaHelper/formulaCompletion.ts` | 176 | `src/lib/upstream/components/FormulaHelper/formulaCompletion.ts` | carried | 2 | unchanged |
+| `src/components/FormulaHelper/formulaHelper.css` | 143 | src/lib/components/FormulaHelper/FormulaHelper.svelte (`<style>`) | ported | 2 |  |
+| `src/components/FormulaHelper/functions.json` | 7371 | `src/lib/upstream/components/FormulaHelper/functions.json` | carried | 2 | unchanged |
 | `src/components/IconPicker/IconPicker.stories.tsx` | 156 |  | not ported | - | Storybook story; the demo app plays this role |
 | `src/components/IconPicker/IconPicker.tsx` | 160 |  | planned | 4 | toolbar and formatting pickers |
 | `src/components/IconPicker/icon-picker.css` | 48 |  | planned | 4 | toolbar and formatting pickers |
@@ -150,7 +153,7 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/Menu/menu.css` | 104 |  | planned | 3 | Skeleton `Menu` |
 | `src/components/Menu/useAnchorPosition.ts` | 72 |  | planned | 3 | Skeleton `Menu` |
 | `src/components/Menu/useMenuKeyDown.ts` | 72 |  | planned | 3 | Skeleton `Menu` |
-| `src/components/Modal/Alert.tsx` | 76 |  | planned | 3 | Skeleton `Dialog` |
+| `src/components/Modal/Alert.tsx` | 76 | `src/lib/components/Modal/Alert.svelte` | ported | 2 | a Skeleton `Dialog`, which brings the focus trap, Escape and focus restoring of `ModalDialog`, `useModalFocus` and `useModalKeyDown`; pulled forward from phase 3 for the editing errors |
 | `src/components/Modal/Confirm.tsx` | 96 |  | planned | 3 | Skeleton `Dialog` |
 | `src/components/Modal/Modal.stories.tsx` | 96 |  | not ported | - | Storybook story; the demo app plays this role |
 | `src/components/Modal/ModalDialog.tsx` | 54 |  | planned | 3 | Skeleton `Dialog` |
@@ -198,7 +201,7 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/Select/select.css` | 155 |  | planned | 4 | Skeleton `Combobox` / native select |
 | `src/components/SheetTabBar/SheetDeleteModal.tsx` | 33 |  | planned | 3 | Skeleton `Dialog` |
 | `src/components/SheetTabBar/SheetListMenu.tsx` | 68 | src/lib/components/SheetTabBar/SheetTabBar.svelte (Skeleton `Menu`) | ported | 1 |  |
-| `src/components/SheetTabBar/SheetTab.tsx` | 294 | `src/lib/components/SheetTabBar/SheetTab.svelte` | partial | 1 / 3 | selecting ported; rename, tab menu and color picker in phase 3 |
+| `src/components/SheetTabBar/SheetTab.tsx` | 294 | `src/lib/components/SheetTabBar/SheetTab.svelte` | partial | 1 / 3 | selecting, and keeping the editor focused while pointing at another sheet, ported; rename, tab menu and color picker in phase 3 |
 | `src/components/SheetTabBar/SheetTabBar.tsx` | 142 | `src/lib/components/SheetTabBar/SheetTabBar.svelte` | partial | 1 / 3 | tabs and sheet list ported; add-sheet button in phase 3, regional settings button in phase 5 |
 | `src/components/SheetTabBar/SheetTabMenu.tsx` | 68 |  | planned | 3 | Skeleton `Menu` |
 | `src/components/SheetTabBar/index.ts` | 1 |  | not ported | - | re-export only |
@@ -224,15 +227,15 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/Tooltip/tooltip.css` | 32 |  | planned | 3 | Skeleton `Tooltip` |
 | `src/components/Tooltip/useTooltipPosition.ts` | 64 |  | planned | 3 | Skeleton `Tooltip` |
 | `src/components/Workbook/Workbook.stories.tsx` | 83 | src/routes/+page.svelte (demo) | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Workbook/Workbook.tsx` | 1233 | src/lib/components/Workbook/Workbook.svelte, workbookModel.ts | partial | 1 / 2-5 | formula bar value, sheet tabs, navigation keys and copy ported; toolbar handlers, paste/cut, undo/redo, styles, merge, PNG export, link dialog and drawer wiring planned |
-| `src/components/Workbook/useKeyboardNavigation.ts` | 291 | `src/lib/components/Workbook/keyboardNavigation.ts` | ported | 1 | same key map; edit keys are wired as no-ops while read-only |
+| `src/components/Workbook/Workbook.tsx` | 1233 | src/lib/components/Workbook/Workbook.svelte, workbookModel.ts | partial | 1 / 2-5 | formula bar, sheet tabs, navigation and edit keys, undo/redo, Delete, the font shortcuts, copy, cut, paste and copy styles ported; the context menu's clipboard paste (phase 3), the toolbar handlers, merging, PNG export and the link dialog (phase 4) and the drawer wiring (phase 5) planned |
+| `src/components/Workbook/useKeyboardNavigation.ts` | 291 | `src/lib/components/Workbook/keyboardNavigation.ts` | ported | 1 | same key map; the edit keys follow `canEdit` |
 | `src/components/Workbook/workbook.css` | 23 | src/lib/components/Workbook/Workbook.svelte (`<style>`) | ported | 1 |  |
 | `src/components/Worksheet/ContextMenus/Cell.tsx` | 103 |  | planned | 3 | Skeleton `Menu` (context trigger) |
 | `src/components/Worksheet/ContextMenus/ColumnHeader.tsx` | 145 |  | planned | 3 | Skeleton `Menu` (context trigger) |
 | `src/components/Worksheet/ContextMenus/RowHeader.tsx` | 124 |  | planned | 3 | Skeleton `Menu` (context trigger) |
 | `src/components/Worksheet/LinkTooltip.tsx` | 144 | `src/lib/components/Worksheet/LinkTooltip.svelte` | partial | 1 / 4 | follow and copy ported; edit and break-link actions come with the link dialog |
-| `src/components/Worksheet/Worksheet.tsx` | 988 | `src/lib/components/Worksheet/Worksheet.svelte` | partial | 1 / 3 | canvas, scrolling, selection, resize handles and link tooltip ported; cell editor (phase 2), context menus and size/error dialogs (phase 3) planned |
-| `src/components/Worksheet/usePointer.ts` | 390 | `src/lib/components/Worksheet/pointer.ts` | partial | 1 / 2 | selection branches ported; reference insertion while editing comes with the cell editor |
+| `src/components/Worksheet/Worksheet.tsx` | 988 | `src/lib/components/Worksheet/Worksheet.svelte` | partial | 1 / 3 | canvas, scrolling, selection, resize handles, link tooltip, cell editor, double click to edit, pasting copied styles and the autofill error dialog ported; context menus and the size dialogs planned (phase 3) |
+| `src/components/Worksheet/usePointer.ts` | 390 | `src/lib/components/Worksheet/pointer.ts` | ported | 1 / 2 | the hook becomes a handler factory |
 | `src/components/Worksheet/worksheet.css` | 258 | src/lib/components/Worksheet/Worksheet.svelte, LinkTooltip.svelte (`<style>`) | ported | 1 |  |
 | `src/components/WorksheetCanvas/cellLinks.ts` | 253 | `src/lib/upstream/components/WorksheetCanvas/cellLinks.ts` | carried | 1 | unchanged |
 | `src/components/WorksheetCanvas/cfRenderer.ts` | 264 | `src/lib/upstream/components/WorksheetCanvas/cfRenderer.ts` | carried | 1 | unchanged |
@@ -242,11 +245,11 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/WorksheetCanvas/util.ts` | 127 | `src/lib/upstream/components/WorksheetCanvas/util.ts` | carried | 1 | unchanged |
 | `src/components/WorksheetCanvas/worksheetCanvas.ts` | 2506 | `src/lib/upstream/components/WorksheetCanvas/worksheetCanvas.ts` | carried | 1 | unchanged |
 | `src/components/clipboard.ts` | 2 | `src/lib/upstream/components/clipboard.ts` | carried | 1 | unchanged |
-| `src/components/constants.tsx` | 3 |  | planned | 2 | layout constants used by the editor |
-| `src/components/createAnchoredPortal.ts` | 13 |  | planned | 3 | Skeleton `Portal` and positioning |
+| `src/components/constants.tsx` | 3 |  | not ported | - | nothing upstream imports it; the layout heights are the CSS variables of IronCalc.svelte |
+| `src/components/createAnchoredPortal.ts` | 13 | `src/lib/components/rootContext.ts` | ported | 2 | Skeleton `Portal` into the widget's `.ic-root` (the formula helper, the alert) |
 | `src/components/types.ts` | 11 | `src/lib/upstream/components/types.ts` | carried | 1 | unchanged |
 | `src/components/util.ts` | 322 | `src/lib/upstream/components/util.ts` | carried | 1 | unchanged |
-| `src/components/utils/useMenuPosition.ts` | 107 |  | planned | 3 | Skeleton `Portal` and positioning |
+| `src/components/utils/useMenuPosition.ts` | 107 | `src/lib/components/utils/menuPosition.ts` | ported | 2 | the hook becomes a Svelte attachment; the positioning is unchanged |
 | `src/components/workbookState.ts` | 199 | `src/lib/upstream/components/workbookState.ts` | carried | 1 | unchanged |
 | `src/i18n.ts` | 25 | `src/lib/i18n.ts` | partial | 1 / 6 | English lookup over the carried `en_us.json`; language switching in phase 6 |
 | `src/icons/arrow-middle-from-line.svg` | 14 |  | planned | 4 | icon component |

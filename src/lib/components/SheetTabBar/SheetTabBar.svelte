@@ -1,8 +1,8 @@
 <!--
   Port of upstream webapp/IronCalc/src/components/SheetTabBar/SheetTabBar.tsx
-  and SheetListMenu.tsx, read-only: the sheet list menu and the tabs of the
-  visible sheets. Adding sheets and the regional settings button come with
-  editing and the right drawer (see docs/parity.md).
+  and SheetListMenu.tsx: the sheet list menu and the tabs of the visible
+  sheets. The add-sheet button and the regional settings button come with
+  phases 3 and 5 (see docs/parity.md).
 -->
 <script lang="ts">
   import MenuIcon from "@lucide/svelte/icons/menu";
@@ -16,9 +16,12 @@
     sheets: SheetOptions[];
     selectedIndex: number;
     onSheetSelected: (index: number) => void;
+    /** True while a formula being edited can take a reference to another sheet. */
+    isReferenceMode: () => boolean;
   }
 
-  let { sheets, selectedIndex, onSheetSelected }: Props = $props();
+  let { sheets, selectedIndex, onSheetSelected, isReferenceMode }: Props =
+    $props();
 
   const visibleSheets = $derived(
     sheets
@@ -93,6 +96,7 @@
           color={tab.color}
           selected={tab.index === selectedIndex}
           onSelected={() => onSheetSelected(tab.index)}
+          {isReferenceMode}
         />
       {/each}
     </div>

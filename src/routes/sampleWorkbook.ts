@@ -1,4 +1,4 @@
-// Builds a small generated workbook that exercises what the read-only widget
+// Builds a small generated workbook that exercises what the widget
 // shows: values and formulas, an array formula, styles, a merged range,
 // frozen panes, a link and several sheets (one hidden). The demo offers it
 // as a sample and the tests use it as their fixture.

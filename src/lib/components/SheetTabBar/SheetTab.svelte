@@ -1,7 +1,8 @@
 <!--
   Port of upstream webapp/IronCalc/src/components/SheetTabBar/SheetTab.tsx,
-  read-only: selecting the sheet. Renaming, the tab menu (color, duplicate,
-  hide, move, delete) and the delete dialog come with editing.
+  selecting the sheet, and keeping the cell editor focused when the tab is
+  clicked to point at another sheet. Renaming, the tab menu (color,
+  duplicate, hide, move, delete) and the delete dialog come with phase 3.
 -->
 <script lang="ts">
   interface Props {
@@ -9,9 +10,12 @@
     color: string;
     selected: boolean;
     onSelected: () => void;
+    /** True while a formula being edited can take a reference to another sheet. */
+    isReferenceMode: () => boolean;
   }
 
-  let { name, color, selected, onSelected }: Props = $props();
+  let { name, color, selected, onSelected, isReferenceMode }: Props =
+    $props();
 </script>
 
 <div
@@ -24,6 +28,13 @@
     onSelected();
     event.stopPropagation();
     event.preventDefault();
+  }}
+  onpointerdown={(event) => {
+    // keep the focus in the editor, so the next click picks a cell there
+    if (isReferenceMode()) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
   }}
   onkeydown={(event) => {
     if (event.key === "Enter" || event.key === " ") {

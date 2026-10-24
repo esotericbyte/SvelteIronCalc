@@ -14,8 +14,13 @@ status=0
 
 while IFS= read -r file; do
   if [ "$file" = "components/Editor/util.ts" ]; then
-    # excerpt of Editor/util.tsx: compare with the getColor function there
-    if ! diff -u <(awk '/^\/\/ IronCalc Color Palette/,/^}/' "$upstream/components/Editor/util.tsx") \
+    # excerpt of Editor/util.tsx without the JSX: getFormulaHTML and its
+    # private helpers are ported in src/lib/components/Editor/formulaHTML.ts.
+    # The line ranges are those of the pinned commit (see UPSTREAM.md); a bump
+    # re-checks them.
+    tsx="$upstream/components/Editor/util.tsx"
+    if ! diff -u <(sed -n 1,9p "$tsx"; echo; sed -n 23,29p "$tsx"; echo
+      sed -n 61,150p "$tsx"; echo; sed -n 339,446p "$tsx") \
       "$here/$file"; then
       status=1
     fi

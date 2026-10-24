@@ -1,11 +1,18 @@
+import { render } from "@testing-library/svelte";
 import { describe, expect, it } from "vitest";
+import Workbook from "../src/lib/components/Workbook/Workbook.svelte";
 import {
+  clearSelectedContents,
+  getClipboardData,
   getFormulaValue,
   getSelectedAddress,
+  getSelectedStyles,
   getSheetOptions,
+  pasteClipboardData,
   selectNextSheet,
   selectPreviousSheet,
   selectSheet,
+  startEditing,
 } from "../src/lib/components/Workbook/workbookModel";
 import { WorkbookState } from "../src/lib/upstream/components/workbookState";
 import { LAST_ROW } from "../src/lib/upstream/components/WorksheetCanvas/constants";
@@ -63,5 +70,73 @@ describe("sheet tabs wiring", () => {
     expect(model.getSelectedSheet()).toBe(2);
     selectNextSheet(model);
     expect(model.getSelectedSheet()).toBe(0);
+  });
+});
+
+describe("edit actions", () => {
+  it("starts typing over a cell or editing its content", () => {
+    const model = buildSampleWorkbook();
+    const state = new WorkbookState();
+    model.setSelectedCell(2, 1);
+    startEditing(model, state, "x");
+    expect(state.getEditingCell()).toMatchObject({
+      row: 2,
+      column: 1,
+      text: "x",
+      mode: "accept",
+      focus: "cell",
+    });
+    startEditing(model, state);
+    expect(state.getEditingCell()).toMatchObject({
+      text: "Apples",
+      cursorStart: 6,
+      mode: "edit",
+    });
+  });
+
+  it("clears the contents of the selection but keeps its styles", () => {
+    const model = buildSampleWorkbook();
+    model.setSelectedCell(1, 1);
+    model.setSelectedRange(1, 1, 2, 2);
+    clearSelectedContents(model);
+    expect(model.getCellContent(0, 1, 1)).toBe("");
+    expect(model.getCellContent(0, 2, 2)).toBe("");
+    expect(model.getCellContent(0, 2, 3)).toBe("135");
+    expect(model.getCellStyle(0, 1, 1).style.font.b).toBe(true);
+  });
+
+  it("copies the styles of the selection onto another area", () => {
+    const model = buildSampleWorkbook();
+    model.setSelectedCell(1, 1);
+    model.setSelectedRange(1, 1, 1, 2);
+    const styles = getSelectedStyles(model);
+    expect(styles).toHaveLength(1);
+    expect(styles[0]).toHaveLength(2);
+    model.setSelectedCell(30, 1);
+    model.setSelectedRange(30, 1, 30, 2);
+    model.onPasteStyles(styles);
+    expect(model.getCellStyle(0, 30, 2).style.font.b).toBe(true);
+  });
+
+  it("round-trips the clipboard JSON", () => {
+    const model = buildSampleWorkbook();
+    model.setSelectedCell(2, 6);
+    const { text, json } = getClipboardData(model, "copy");
+    expect(text).toBe("565");
+    model.setSelectedCell(40, 6);
+    const data: Record<string, string> = { "application/json": json };
+    expect(pasteClipboardData(model, (type) => data[type] ?? "")).toBe(true);
+    // a copied formula is shifted to its new place
+    expect(model.getCellContent(0, 40, 6)).toBe("=SUM(B40:E40)");
+    expect(pasteClipboardData(model, () => "")).toBe(false);
+  });
+
+  it("starts the format painter", () => {
+    const model = buildSampleWorkbook();
+    const workbookState = new WorkbookState();
+    const { component } = render(Workbook, { model, workbookState });
+    model.setSelectedCell(1, 1);
+    component.copyStyles();
+    expect(workbookState.getCopyStyles()?.[0][0].font.b).toBe(true);
   });
 });

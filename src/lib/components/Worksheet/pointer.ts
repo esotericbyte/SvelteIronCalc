@@ -1,12 +1,13 @@
 // Port of upstream webapp/IronCalc/src/components/Worksheet/usePointer.ts from
 // a React hook to a plain handler factory.
-//
-// Phase 1 is read-only, so the branches that only run while a cell is being
-// edited (clicking another cell to insert a reference into the formula, and
-// committing the edit when clicking away) are not ported yet; they come with
-// the cell editor (see docs/parity.md).
 import type { Model } from "@ironcalc/wasm";
+import { isInReferenceMode } from "../../upstream/components/Editor/util";
 import type { Cell } from "../../upstream/components/types";
+import {
+  growRangeOverMergedCells,
+  mergedCellContaining,
+  rangeToStr,
+} from "../../upstream/components/util";
 import {
   headerColumnWidth,
   headerRowHeight,
@@ -14,6 +15,7 @@ import {
   LAST_ROW,
 } from "../../upstream/components/WorksheetCanvas/constants";
 import type WorksheetCanvas from "../../upstream/components/WorksheetCanvas/worksheetCanvas";
+import type { WorkbookState } from "../../upstream/components/workbookState";
 
 export interface PointerSettings {
   canvasElement: () => HTMLCanvasElement | null;
@@ -26,6 +28,7 @@ export interface PointerSettings {
   onAreaSelecting: (cell: Cell) => void;
   onAreaSelected: () => void;
   model: () => Model;
+  workbookState: () => WorkbookState;
   refresh: () => void;
 }
 
@@ -39,6 +42,7 @@ export function createPointerHandlers(
   options: PointerSettings,
 ): PointerHandlers {
   let isSelecting = false;
+  let isInserting = false;
   let isSelectingRows = false;
   let initialRow: number | null = null;
   let isSelectingColumns = false;
@@ -51,7 +55,9 @@ export function createPointerHandlers(
       return;
     }
 
-    if (!(isSelecting || isSelectingRows || isSelectingColumns)) {
+    if (
+      !(isSelecting || isInserting || isSelectingRows || isSelectingColumns)
+    ) {
       return;
     }
     const model = options.model();
@@ -134,6 +140,33 @@ export function createPointerHandlers(
     }
     if (isSelecting) {
       options.onAreaSelecting(cell);
+    } else if (isInserting) {
+      const workbookState = options.workbookState();
+      const editingCell = workbookState.getEditingCell();
+      if (!editingCell?.referencedRange) {
+        return;
+      }
+      const { anchorRow, anchorColumn } = editingCell.referencedRange;
+      const range = editingCell.referencedRange.range;
+      range.rowStart = anchorRow;
+      range.columnStart = anchorColumn;
+      range.rowEnd = cell.row;
+      range.columnEnd = cell.column;
+      // A reference can never cover part of a merged cell
+      Object.assign(
+        range,
+        growRangeOverMergedCells(model.getMergedCells(range.sheet), range),
+      );
+
+      const sheetNames = model.getWorksheetsProperties().map((s) => s.name);
+
+      editingCell.referencedRange.str = rangeToStr(
+        range,
+        editingCell.sheet,
+        sheetNames[range.sheet],
+      );
+      workbookState.setEditingCell(editingCell);
+      options.refresh();
     }
   };
 
@@ -143,6 +176,9 @@ export function createPointerHandlers(
       isSelecting = false;
       worksheetElement?.releasePointerCapture(event.pointerId);
       options.onAreaSelected();
+    } else if (isInserting) {
+      isInserting = false;
+      worksheetElement?.releasePointerCapture(event.pointerId);
     } else if (isSelectingRows) {
       isSelectingRows = false;
       initialRow = null;
@@ -237,8 +273,67 @@ export function createPointerHandlers(
       return;
     }
 
+    const model = options.model();
+    const workbookState = options.workbookState();
+    const editingCell = workbookState.getEditingCell();
     const cell = worksheet.getCellByCoordinates(x, y);
     if (cell) {
+      if (editingCell) {
+        if (
+          model.getSelectedSheet() === editingCell.sheet &&
+          cell.row === editingCell.row &&
+          cell.column === editingCell.column
+        ) {
+          // We are clicking on the cell we are editing
+          // we do nothing
+          return;
+        }
+        // now we are editing one cell and we click in another one
+        // If we can insert a range we do that
+        const text = editingCell.text;
+        if (isInReferenceMode(model, text, editingCell.cursorEnd)) {
+          const sheet = model.getSelectedSheet();
+          // Clicking inside a merged cell references its anchor
+          const merge = mergedCellContaining(
+            model.getMergedCells(sheet),
+            cell.row,
+            cell.column,
+          );
+          const row = merge ? merge.row : cell.row;
+          const column = merge ? merge.column : cell.column;
+          const range = {
+            sheet,
+            rowStart: row,
+            rowEnd: row,
+            columnStart: column,
+            columnEnd: column,
+          };
+          const sheetNames = model.getWorksheetsProperties().map((s) => s.name);
+          editingCell.referencedRange = {
+            range,
+            str: rangeToStr(range, editingCell.sheet, sheetNames[range.sheet]),
+            anchorRow: range.rowStart,
+            anchorColumn: range.columnStart,
+          };
+          workbookState.setEditingCell(editingCell);
+          event.stopPropagation();
+          event.preventDefault();
+          isInserting = true;
+          worksheetWrapper.setPointerCapture(event.pointerId);
+          options.refresh();
+          return;
+        }
+        // We are clicking away but we are not in reference mode
+        // We finish the editing
+        model.setUserInput(
+          editingCell.sheet,
+          editingCell.row,
+          editingCell.column,
+          workbookState.getEditingText(),
+        );
+        workbookState.clearEditingCell();
+        // we continue to select the new cell
+      }
       if (event.shiftKey) {
         // We are extending the selection
         options.onAreaSelecting(cell);

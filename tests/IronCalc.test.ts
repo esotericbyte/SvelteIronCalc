@@ -48,16 +48,4 @@ describe("IronCalc widget", () => {
       "true",
     );
   });
-
-  it("does not let paste change the model", async () => {
-    const model = buildSampleWorkbook();
-    const { container } = render(IronCalc, { model });
-    const workbook = container.querySelector(
-      ".ic-workbook-container",
-    ) as HTMLElement;
-    const event = new Event("paste", { bubbles: true, cancelable: true });
-    workbook.dispatchEvent(event);
-    expect(event.defaultPrevented).toBe(true);
-    expect(model.getCellContent(0, 1, 1)).toBe("Item");
-  });
 });

@@ -6,13 +6,15 @@
   Like upstream, a fresh WorksheetCanvas is built over the same elements on
   every refresh: the renderer is written for that.
 
-  Phase 1 is read-only: the cell editor, the context menus and the column
-  width / row height dialogs are not ported yet (see docs/parity.md).
+  The context menus and the column width / row height dialogs come with
+  phase 3 (see docs/parity.md).
 -->
 <script lang="ts">
   import type { Model } from "@ironcalc/wasm";
   import { onDestroy, untrack } from "svelte";
+  import { t } from "../../i18n";
   import type { Cell } from "../../upstream/components/types";
+  import { getEditorSize } from "../../upstream/components/util";
   import type { LinkHoverCell } from "../../upstream/components/WorksheetCanvas/cellLinks";
   import {
     LAST_COLUMN,
@@ -20,6 +22,8 @@
   } from "../../upstream/components/WorksheetCanvas/constants";
   import WorksheetCanvas from "../../upstream/components/WorksheetCanvas/worksheetCanvas";
   import type { WorkbookState } from "../../upstream/components/workbookState";
+  import Editor from "../Editor/Editor.svelte";
+  import Alert from "../Modal/Alert.svelte";
   import LinkTooltip from "./LinkTooltip.svelte";
   import { createPointerHandlers } from "./pointer";
 
@@ -29,9 +33,14 @@
     /** Bumped by the workbook whenever the model changed outside Svelte's view. */
     version: number;
     refresh: () => void;
+    /** When false, the cell editor is read-only and no edit starts here. */
+    canEdit: boolean;
+    /** Called when an edit in the cell editor ends. */
+    onEditEnd: () => void;
   }
 
-  let { model, workbookState, version, refresh }: Props = $props();
+  let { model, workbookState, version, refresh, canEdit, onEditEnd }: Props =
+    $props();
 
   let scrollElement: HTMLDivElement | null = $state(null);
   let spacerElement: HTMLDivElement | null = $state(null);
@@ -47,6 +56,15 @@
   let columnHeaders: HTMLDivElement | null = $state(null);
 
   let worksheetCanvas: WorksheetCanvas | null = null;
+  let cellEditor: Editor | null = $state(null);
+
+  // The raw engine error of a rejected autofill (localized when rendered)
+  let autofillError: string | null = $state(null);
+
+  const editingText = $derived.by(() => {
+    void version;
+    return workbookState.getEditingText();
+  });
 
   // Size of the sheet area, tracked so a resize re-renders at the new size
   let width = $state(0);
@@ -106,6 +124,8 @@
     ) {
       return;
     }
+    // Fit the editor box to the text before the renderer positions it
+    cellEditor?.syncSize();
     // The visible sheet area, used by the engine for page up/down and to
     // keep the selected cell in view
     model.setWindowWidth(worksheet.clientWidth);
@@ -182,6 +202,15 @@
         }
       },
       onHideLinkTooltip: hideLinkTooltip,
+      onAutofillError: (message) => {
+        // the known rejections get a dialog; anything else stays silent
+        if (
+          message.includes("merged cell") ||
+          message.includes("array formula")
+        ) {
+          autofillError = message;
+        }
+      },
       linkTooltipCell,
       refresh,
     });
@@ -248,6 +277,7 @@
 
   const pointer = createPointerHandlers({
     model: () => model,
+    workbookState: () => workbookState,
     refresh: () => refresh(),
     canvasElement: () => canvasElement,
     worksheetElement: () => worksheetElement,
@@ -298,6 +328,18 @@
     },
     onAreaSelected: () => {
       workbookState.setSelecting(false);
+      const styles = workbookState.getCopyStyles();
+      if (styles?.length) {
+        model.onPasteStyles(styles);
+        if (!worksheetCanvas) {
+          return;
+        }
+        worksheetCanvas.renderSheet();
+      }
+      workbookState.setCopyStyles(null);
+      if (worksheetElement) {
+        worksheetElement.style.cursor = "auto";
+      }
       refresh();
     },
   });
@@ -342,9 +384,39 @@
     onpointermove={pointer.onPointerMove}
     onpointerup={pointer.onPointerUp}
     oncontextmenu={(event) => {
-      // The context menus only offer editing actions, so read-only shows none
+      // The context menus come with phase 3; until then none is shown
       event.preventDefault();
       event.stopPropagation();
+    }}
+    ondblclick={(event) => {
+      // Starts editing cell
+      if (!canEdit) {
+        return;
+      }
+      const { sheet, row, column } = model.getSelectedView();
+      const text = model.getCellContent(sheet, row, column);
+      const { width: editorWidth, height: editorHeight } = getEditorSize(
+        model,
+        sheet,
+        row,
+        column,
+      );
+      workbookState.setEditingCell({
+        sheet,
+        row,
+        column,
+        text,
+        cursorStart: text.length,
+        cursorEnd: text.length,
+        focus: "cell",
+        referencedRange: null,
+        activeRanges: [],
+        mode: "accept",
+        editorWidth,
+        editorHeight,
+      });
+      event.stopPropagation();
+      refresh();
     }}
   >
     <canvas class="ic-worksheet-sheet-canvas" bind:this={canvasElement}
@@ -354,7 +426,19 @@
       bind:this={cellArrayStructure}
     ></div>
     <div class="ic-worksheet-cell-outline" bind:this={cellOutline}></div>
-    <div class="ic-worksheet-editor-wrapper" bind:this={editorElement}></div>
+    <div class="ic-worksheet-editor-wrapper" bind:this={editorElement}>
+      <Editor
+        bind:this={cellEditor}
+        originalText={editingText}
+        {onEditEnd}
+        onTextUpdated={refresh}
+        {model}
+        {workbookState}
+        type="cell"
+        {canEdit}
+        {version}
+      />
+    </div>
     <div class="ic-worksheet-area-outline" bind:this={areaOutline}></div>
     <div class="ic-worksheet-extend-to-outline" bind:this={extendToOutline}
     ></div>
@@ -372,6 +456,14 @@
       />
     {/if}
   </div>
+  <Alert
+    open={autofillError !== null}
+    onClose={() => (autofillError = null)}
+    title={t("error_dialog.error_autofill")}
+    message={autofillError?.includes("merged cell")
+      ? t("error_dialog.error_autofill_merged")
+      : t("error_dialog.error_autofill_array")}
+  />
 </div>
 
 <style>
@@ -514,8 +606,7 @@
     border-radius: 3px;
   }
 
-  /* The renderer positions the editor; until the cell editor is ported it
-     only ever hides it. */
+  /* The renderer positions the editor over the edited cell, or out of view */
   .ic-worksheet-editor-wrapper {
     position: absolute;
     width: 100%;

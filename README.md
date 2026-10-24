@@ -4,7 +4,7 @@ A Svelte 5 port of [IronCalc](https://github.com/ironcalc/IronCalc)'s spreadshee
 
 The goal is feature parity with `@ironcalc/workbook` 0.9.1. The work goes in phases, and [docs/parity.md](docs/parity.md) is the roadmap: it maps every upstream file to its Svelte counterpart and says what is done and what comes next.
 
-**Status: phase 1, a read-only sheet.** Scrolling, cell/range/row/column selection with pointer and keyboard, frozen panes, merged cells, conditional formatting rendering, sheet tabs and the sheet list, a read-only formula bar, cell links, copying the selection, theme variables (including dark), and loading and saving xlsx. Editing, the toolbar, menus and the right drawer come in later phases. The package is not published to npm yet.
+**Status: phase 2, editing.** Scrolling, cell/range/row/column selection with pointer and keyboard, frozen panes, merged cells, conditional formatting rendering, sheet tabs and the sheet list, cell links, copying the selection, theme variables (including dark), and loading and saving xlsx; and editing: the cell and formula bar editors with formula highlighting, reference insertion by keys and by pointing, F4 cycling and the function helper, typing or F2 to edit, Delete, undo/redo, the bold/italic/underline shortcuts, cut and paste, the autofill handle and the format painter. The toolbar, menus, dialogs and the right drawer come in later phases. The package is not published to npm yet.
 
 ## 1. Use
 
@@ -28,7 +28,7 @@ The goal is feature parity with `@ironcalc/workbook` 0.9.1. The work goes in pha
 {/if}
 ```
 
-`IronCalc` takes a `Model` from `@ironcalc/wasm` (`Model.fromBytes`, `new Model(...)`, or `modelFromXlsx`) and an optional `themeVariables` (for example `darkThemeVariables`). It fills its parent, so give the parent a height. Keyboard input is handled only while the widget has focus; it takes focus when clicked.
+`IronCalc` takes a `Model` from `@ironcalc/wasm` (`Model.fromBytes`, `new Model(...)`, or `modelFromXlsx`), an optional `themeVariables` (for example `darkThemeVariables`) and an optional `canEdit` (default `true`; `false` makes the widget read-only). Edits change the model in place, so saving it (`downloadXlsx`, `model.toBytes()`) saves them. It fills its parent, so give the parent a height. Keyboard input is handled only while the widget has focus; it takes focus when clicked.
 
 The xlsx helpers live in the separate entry `ironcalc-svelte/xlsx` because they need `@ironcalc/wasm-xlsx`, upstream's larger engine build with xlsx support, which is an optional peer dependency. Without them, `Model.fromBytes` and `model.toBytes()` work with IronCalc's own format.
 
@@ -50,7 +50,7 @@ Upstream's sheet font is Inter; load it in the host app (the demo shows how) or 
 
 ```sh
 npm install
-npm run dev      # the demo app: open an .xlsx file or the generated sample
+npm run dev      # the demo app: open and edit an .xlsx file or the generated sample
 npm run check    # svelte-check
 npm test         # vitest
 npm run build    # demo build, then svelte-package and publint into dist/

@@ -1,18 +1,39 @@
 <!--
-  Port of upstream webapp/IronCalc/src/components/FormulaBar/FormulaBar.tsx,
-  read-only: the address box and the formula (or value) of the selected cell.
-  The formula editor and the named-ranges menu behind the address box come in
-  later phases (see docs/parity.md).
+  Port of upstream webapp/IronCalc/src/components/FormulaBar/FormulaBar.tsx:
+  the address box and the formula editor of the selected cell. The
+  named-ranges menu behind the address box comes with the right drawer (see
+  docs/parity.md).
 -->
 <script lang="ts">
+  import type { Model } from "@ironcalc/wasm";
+  import { getEditorSize } from "../../upstream/components/util";
+  import type { WorkbookState } from "../../upstream/components/workbookState";
+  import Editor from "../Editor/Editor.svelte";
   import Fx from "../icons/Fx.svelte";
 
   interface Props {
     cellAddress: string;
     formulaValue: string;
+    model: Model;
+    workbookState: WorkbookState;
+    /** Called when an edit started here ends. */
+    onChange: () => void;
+    onTextUpdated: () => void;
+    canEdit: boolean;
+    /** Bumped by the workbook whenever the model or the runtime state changed. */
+    version: number;
   }
 
-  let { cellAddress, formulaValue }: Props = $props();
+  let {
+    cellAddress,
+    formulaValue,
+    model,
+    workbookState,
+    onChange,
+    onTextUpdated,
+    canEdit,
+    version,
+  }: Props = $props();
 </script>
 
 <div class="ic-formula-bar-root">
@@ -22,11 +43,52 @@
   <div class="ic-formula-bar-divider"></div>
   <div class="ic-formula-bar-formula-container">
     <div class="ic-formula-bar-button"><Fx /></div>
+    <!-- Start editing on pointerdown, not click: clicking *in the middle* of
+         existing text does not emit a `click` event (only clicking past the
+         end does). Also no preventDefault(): on pointerdown that would cancel
+         the textarea's focus and caret placement. -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="ic-formula-bar-editor-wrapper"
       data-testid="ic-formula-bar-value"
+      onpointerdown={(event) => {
+        if (!canEdit) {
+          return;
+        }
+        const [sheet, row, column] = model.getSelectedCell();
+        const { width: editorWidth, height: editorHeight } = getEditorSize(
+          model,
+          sheet,
+          row,
+          column,
+        );
+        workbookState.setEditingCell({
+          sheet,
+          row,
+          column,
+          text: formulaValue,
+          referencedRange: null,
+          cursorStart: formulaValue.length,
+          cursorEnd: formulaValue.length,
+          focus: "formula-bar",
+          activeRanges: [],
+          mode: "edit",
+          editorWidth,
+          editorHeight,
+        });
+        event.stopPropagation();
+      }}
     >
-      {formulaValue}
+      <Editor
+        originalText={formulaValue}
+        {model}
+        {workbookState}
+        onEditEnd={onChange}
+        {onTextUpdated}
+        type="formula-bar"
+        {canEdit}
+        {version}
+      />
     </div>
   </div>
 </div>
@@ -98,12 +160,15 @@
     padding: 0;
     border-width: 0;
     outline: none;
+    resize: none;
     overflow: hidden;
-    white-space: pre;
-    text-overflow: ellipsis;
+    white-space: pre-wrap;
     vertical-align: bottom;
     text-align: left;
     font-family: monospace;
-    color: var(--palette-common-black);
+  }
+
+  .ic-formula-bar-editor-wrapper :global(span) {
+    min-width: 1px;
   }
 </style>
