@@ -10,8 +10,10 @@
   themes"), the formula bar's address box (named ranges) and the locale
   button at the right of the sheet tabs (regional settings); the sample has
   a named range and a conditional formatting rule to show. Going back to the
-  sample asks first, with the exported Confirm dialog. The header shows the
-  exported IronCalcIcon.
+  sample asks first, with the exported Confirm dialog. The language select
+  calls the widget's `setLanguage`, which translates the widget and the
+  function names of formulas; a workbook opened afterwards gets the chosen
+  language too. The header shows the exported IronCalcIcon.
 -->
 <script lang="ts">
   import Download from "@lucide/svelte/icons/download";
@@ -26,6 +28,7 @@
     init,
     IronCalc,
     IronCalcIcon,
+    type IronCalcHandle,
     type Model,
     Switch,
   } from "$lib";
@@ -40,11 +43,29 @@
   let readOnly = $state(false);
   let fileInput: HTMLInputElement | null = $state(null);
   let confirmSample = $state(false);
+  let widget: IronCalcHandle | null = $state(null);
+  let language = $state("en-US");
+
+  // the languages of upstream's locale files
+  const languages = [
+    { code: "en-US", name: "English (US)" },
+    { code: "en-GB", name: "English (UK)" },
+    { code: "es-ES", name: "Español" },
+    { code: "fr-FR", name: "Français" },
+    { code: "de-DE", name: "Deutsch" },
+    { code: "it-IT", name: "Italiano" },
+  ];
+
+  /** A model shown from now on takes the language chosen for the widget. */
+  function withLanguage(next: Model): Model {
+    next.setLanguage(language.split("-")[0]);
+    return next;
+  }
 
   onMount(async () => {
     try {
       await Promise.all([init(), initXlsx()]);
-      model = buildSampleWorkbook();
+      model = withLanguage(buildSampleWorkbook());
     } catch (e) {
       error = `Could not start the engine: ${e}`;
     } finally {
@@ -56,7 +77,7 @@
     error = null;
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      model = modelFromXlsx(bytes, file.name.replace(/\.xlsx$/i, ""));
+      model = withLanguage(modelFromXlsx(bytes, file.name.replace(/\.xlsx$/i, "")));
       fileName = file.name;
     } catch (e) {
       error = `Could not open ${file.name}: ${e}`;
@@ -109,6 +130,16 @@
     >
       <Download size={16} /> Download .xlsx
     </button>
+    <select
+      class="select w-auto py-1 text-sm"
+      aria-label="Language"
+      bind:value={language}
+      onchange={() => widget?.setLanguage(language)}
+    >
+      {#each languages as option (option.code)}
+        <option value={option.code}>{option.name}</option>
+      {/each}
+    </select>
     <Switch
       label="Read-only"
       checked={readOnly}
@@ -132,7 +163,7 @@
     open={confirmSample}
     onClose={() => (confirmSample = false)}
     onConfirm={() => {
-      model = buildSampleWorkbook();
+      model = withLanguage(buildSampleWorkbook());
       fileName = "sample.xlsx";
       error = null;
     }}
@@ -146,6 +177,7 @@
       <p class="p-4">Loading the engine…</p>
     {:else if model}
       <IronCalc
+        bind:this={widget}
         {model}
         canEdit={!readOnly}
         themeVariables={dark ? darkThemeVariables : undefined}

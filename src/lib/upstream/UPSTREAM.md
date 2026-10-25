@@ -36,6 +36,10 @@ Copyright 2023 EqualTo GmbH, 2023 - Present IronCalc contributors,
 | `theme/index.ts` | `src/theme/index.ts` | unchanged |
 | `theme/theme.css` | `src/theme/theme.css` | unchanged |
 | `locale/en_us.json` | `src/locale/en_us.json` | unchanged |
+| `locale/de_de.json` | `src/locale/de_de.json` | unchanged |
+| `locale/es_es.json` | `src/locale/es_es.json` | unchanged |
+| `locale/fr_fr.json` | `src/locale/fr_fr.json` | unchanged |
+| `locale/it_it.json` | `src/locale/it_it.json` | unchanged |
 
 `scripts/upstream-diff.sh <IronCalc checkout>` compares this directory with
 an upstream checkout, which is the first step of a bump. The excerpt's line

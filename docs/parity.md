@@ -23,7 +23,7 @@ The plain-TypeScript renderer and the runtime state are carried over unchanged i
 1. **carried**: upstream file copied unchanged into `src/lib/upstream/`.
 2. **ported**: rewritten in Svelte or plain TypeScript with the same behavior.
 3. **partial**: the read-only part is ported; the rest is planned for the phase given after the slash.
-4. **planned**: not ported yet; the phase column says when.
+4. **planned**: not ported yet; the phase column says when. Since phase 6 no row is partial or planned.
 5. **not ported**: deliberately left out (Storybook stories, re-export files, upstream documentation).
 
 ## 3. Feature parity
@@ -66,7 +66,8 @@ The plain-TypeScript renderer and the runtime state are carried over unchanged i
 | Theme editor | `RightDrawer/Themes/` | ported | 5 |
 | Regional settings (locale, timezone) | `RightDrawer/RegionalSettings/`, `SheetTabBar/SheetTabBar.tsx` | ported (as upstream, the drawer sets the locale and timezone and keeps the workbook's language) | 5 |
 | Switch primitive, exported | `Switch/`, `index.ts` | ported (Skeleton `Switch`) | 5 |
-| Translations (de, en, es, fr, it) and `setLanguage` | `locale/`, `i18n.ts`, `IronCalc.tsx` | planned | 6 |
+| Translations (de, en, es, fr, it) and `setLanguage` | `locale/`, `i18n.ts`, `IronCalc.tsx`, `index.ts` | ported (the locale files are carried; the lookup is a small reactive function in place of i18next, so nothing is set up in `init`; as upstream, the language is shared by every widget on the page and a language without a locale file shows the keys) | 6 |
+| Locale lint (same keys in every locale, no unused or missing key) | `scripts/lint-i18n.js`, `package.json` | ported (`npm run lint:i18n`, run by `npm run check` as upstream's `check` runs it) | 6 |
 
 ## 4. Phases
 
@@ -98,9 +99,11 @@ The drawer shell and its sections: named ranges (with the formula bar address me
 
 As landed: `RightDrawer.svelte` shows the section `Workbook.svelte` asks for, and the workbook narrows the sheet by the drawer's width while it is open. The toolbar's conditional formatting and cell styles buttons (pressed while their section shows), the theme menu's "Manage themes", the address box's menu and the locale button at the right of the sheet tabs open it; the address box is now upstream's ghost button with the named-ranges menu, on the Menu primitive. The sections follow upstream screen by screen: the named ranges list (search, scope filter, select, edit, delete) and editor (debounced engine validation, scope by sheet, "use selection"); the cell style tiles (the workbook's own, then the built-in ones by category), their manage list and editor (name, number format with a custom one, font, fill, alignment and border, each included by a Switch); the conditional formatting list (search, sheet or selection filter, the reorder slide, edit, duplicate, delete) and the rule editor with its classic, color scale, data bars and icon sets tabs; the themes list and editor with the single custom theme; and the regional settings. The header every section repeats upstream is one `DrawerHeader.svelte`, and the color swatch next to the editors' fields one `SwatchButton.svelte`. The plain-TypeScript parts are ported rather than carried, because upstream keeps them in or next to its React components: `cfRuleMapping.ts` and `ruleDescription.ts` are unchanged but for their imports (the rule data types sit in small modules beside them, and `t` is the widget's lookup, which gained i18next's `defaultValue`), `named-styles-utils.ts` returns CSS strings instead of React style objects, and the presets of the four rule editors are plain modules. Two deliberate differences: the drawer's resize handle measures the width from the workbook's right edge and captures the pointer, where upstream measures from the window's right edge and sets the cursor and `user-select` on `document.body`; and the address-box menu has the menu keys of the Menu primitive, where upstream's popover only closes on Escape and presses outside. Clicking a list item gives the focus back to the sheet, as upstream's focus handling does; clicking a label (a Switch's) now leaves the focus where it is. The `Switch` primitive is ported on Skeleton's and exported, as upstream. Upstream has no tests for the drawer; `tests/drawer.test.ts` drives each section through the widget and `tests/cfRuleMapping.test.ts` round-trips every kind of rule through the engine. The demo's sample workbook gained a named range and a conditional formatting rule, and its read-only toggle is the exported Switch.
 
-### 4.6 Phase 6: internationalization
+### 4.6 Phase 6: internationalization (landed)
 
 The five upstream locales, a Svelte-friendly translation store replacing the English lookup, the `setLanguage` handle of the widget, and a port of upstream's locale lint.
+
+As landed: the four other locale files are carried unchanged beside `en_us.json`, and `src/lib/i18n.ts` maps the same six language codes as upstream's `i18n.ts` (`en-US`, `en-GB`, `es-ES`, `fr-FR`, `de-DE`, `it-IT`) to them. The language is a `$state` in `i18nState.svelte.ts` that `t` reads, so every template and `$derived` that translates re-renders when it changes, with no store to subscribe to and no change to the components that call `t`. `changeLanguage` formats a code as i18next does (`de-de` becomes `de-DE`), and a language without a locale file translates every key to itself, as upstream's instance, which has no fallback language. `IronCalc.svelte` exports `setLanguage`, upstream's imperative handle, with upstream's body: when the language differs it changes the translation and sets the model's language to the code's first part (which translates formula function names), then redraws; the `IronCalcHandle` type is exported. Upstream's `init` also awaits `i18n.init()`; the lookup here needs no set-up, so `init` still only starts the engine. Two things follow upstream on purpose: the translation language is shared by every widget on the page, as upstream's single i18next instance, and so is the guard that skips `setLanguage` when the language is already the one asked for (the model then keeps its own language); and the dialogs' close buttons keep the English `closeLabel` default of upstream's `Alert`, `Confirm` and `Prompt`. Upstream's `scripts/lint-i18n.js` is ported with its checks unchanged, reading the carried locale files and scanning the `.ts` and `.svelte` files of `src/lib`; it passes with the same 402 keys across 5 locales. `tests/i18n.test.ts` covers the lookup in each language, `setLanguage` on the widget and the model, and sweeps the widget, the regional settings, the conditional formatting and cell style sections and their editors in German for any English string left. The demo app has a language select that calls `setLanguage`, and gives a workbook it opens afterwards the chosen language.
 
 ## 5. File map
 
@@ -108,7 +111,7 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 
 | Upstream file | Lines | Svelte counterpart | Status | Phase | Notes |
 | --- | --- | --- | --- | --- | --- |
-| `src/IronCalc.tsx` | 76 | `src/lib/components/IronCalc.svelte` | ported | 1 / 2 | the widget's own element is the `.ic-root` (upstream defaults to `document.body`); `canEdit` came with phase 2, the `setLanguage` handle comes with phase 6 |
+| `src/IronCalc.tsx` | 76 | `src/lib/components/IronCalc.svelte` | ported | 1 / 2 / 6 | the widget's own element is the `.ic-root` (upstream defaults to `document.body`); `canEdit` came with phase 2, the `setLanguage` handle with phase 6 as an exported method of the component, reached with `bind:this`, and the `IronCalcHandle` type |
 | `src/components/AdvancedColorPicker.tsx/AdvancedColorPicker.tsx` | 233 | `src/lib/components/AdvancedColorPicker/AdvancedColorPicker.svelte`, `HexColorPicker.svelte`, `hsv.ts` | ported | 3 | pulled forward from phase 4 with the color picker; react-colorful's `HexColorPicker` and `HexColorInput` become `HexColorPicker.svelte` (saturation area and hue bar, pointer and arrow keys) and a plain hex field; upstream's recent-colors list, which nothing reads, is left out |
 | `src/components/AdvancedColorPicker.tsx/advanced-color-picker.css` | 135 | src/lib/components/AdvancedColorPicker/AdvancedColorPicker.svelte (`<style>`) | ported | 3 | with the menu layer of `index.css`; the react-colorful overrides are the styles of `HexColorPicker.svelte` |
 | `src/components/AdvancedColorPicker.tsx/useKeyDown.ts` | 54 | src/lib/components/AdvancedColorPicker/AdvancedColorPicker.svelte (`onKeyDown`) | ported | 3 | same keys (Escape, Tab cycling) |
@@ -262,7 +265,7 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/util.ts` | 322 | `src/lib/upstream/components/util.ts` | carried | 1 | unchanged |
 | `src/components/utils/useMenuPosition.ts` | 107 | `src/lib/components/utils/menuPosition.ts` | ported | 2 | the hook becomes a Svelte attachment; the positioning is unchanged |
 | `src/components/workbookState.ts` | 199 | `src/lib/upstream/components/workbookState.ts` | carried | 1 | unchanged |
-| `src/i18n.ts` | 25 | `src/lib/i18n.ts` | partial | 1 / 6 | English lookup over the carried `en_us.json`, with `{{name}}` interpolation since phase 3 and i18next's `defaultValue` since phase 5; language switching in phase 6 |
+| `src/i18n.ts` | 25 | `src/lib/i18n.ts`, `i18nState.svelte.ts` | ported | 1 / 6 | a lookup over the carried locale files in place of an i18next instance: English only in phase 1, `{{name}}` interpolation since phase 3, i18next's `defaultValue` since phase 5, and since phase 6 the six language codes of upstream with `changeLanguage` and `getLanguage`, the language being reactive state that `t` reads |
 | `src/icons/arrow-middle-from-line.svg` | 14 | `src/lib/components/icons/ArrowMiddleFromLine.svelte` | ported | 4 | the SVG unchanged, with `aria-hidden` and the caller's attributes |
 | `src/icons/border-bottom.svg` | 6 | `src/lib/components/icons/BorderBottomIcon.svelte` | ported | 4 | the SVG unchanged, with `aria-hidden` and the caller's attributes |
 | `src/icons/border-center-h.svg` | 4 | `src/lib/components/icons/BorderCenterHIcon.svelte` | ported | 4 | the SVG unchanged, with `aria-hidden` and the caller's attributes |
@@ -285,12 +288,12 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/icons/ironcalc_icon_white.svg` | 7 | `src/lib/components/icons/IronCalcIconWhite.svelte` | ported | 4 | the SVG unchanged, with `aria-hidden` and the caller's attributes; exported, as upstream |
 | `src/icons/orange+black.svg` | 8 | `src/lib/components/icons/IronCalcLogo.svelte` | ported | 4 | the SVG unchanged, with `aria-hidden` and the caller's attributes; exported, as upstream |
 | `src/index.css` | 18 | src/lib/components/IronCalc.svelte (`<style>`) | ported | 1 |  |
-| `src/index.ts` | 45 | `src/lib/index.ts` | partial | 1 / 3 / 4 / 5 / 6 | exports the widget, `init`, `Model`, the theme helpers, (phase 3) the UI primitives upstream exports: `Button`, `IconButton`, `Checkbox`, `Input`, `Menu`, `MenuItem`, `MenuItemWithSubmenu`, `MenuDivider`, `Confirm`, `ToggleButton`, `Tooltip` and their property types, (phase 4) the logos `IronCalcIcon`, `IronCalcIconWhite` and `IronCalcLogo`, and (phase 5) `Switch` and `SwitchProperties`; the `IronCalcHandle` type and the i18n set-up of `init` follow with phase 6 |
-| `src/locale/de_de.json` | 460 |  | planned | 6 | i18n |
-| `src/locale/en_us.json` | 460 | `src/lib/upstream/locale/en_us.json` | carried | 1 | unchanged; English strings for phase 1 |
-| `src/locale/es_es.json` | 460 |  | planned | 6 | i18n |
-| `src/locale/fr_fr.json` | 460 |  | planned | 6 | i18n |
-| `src/locale/it_it.json` | 460 |  | planned | 6 | i18n |
+| `src/index.ts` | 45 | `src/lib/index.ts` | ported | 1 / 3 / 4 / 5 / 6 | exports the widget, `init`, `Model`, the theme helpers, (phase 3) the UI primitives upstream exports: `Button`, `IconButton`, `Checkbox`, `Input`, `Menu`, `MenuItem`, `MenuItemWithSubmenu`, `MenuDivider`, `Confirm`, `ToggleButton`, `Tooltip` and their property types, (phase 4) the logos `IronCalcIcon`, `IronCalcIconWhite` and `IronCalcLogo`, (phase 5) `Switch` and `SwitchProperties`, and (phase 6) the `IronCalcHandle` type; `init` starts only the engine, as the translation lookup needs no set-up where upstream's awaits `i18n.init()`. It also exports `Workbook`, `WorkbookState` and the theme setters upstream keeps internal |
+| `src/locale/de_de.json` | 460 | `src/lib/upstream/locale/de_de.json` | carried | 6 | unchanged |
+| `src/locale/en_us.json` | 460 | `src/lib/upstream/locale/en_us.json` | carried | 1 | unchanged; the reference locale of the lint |
+| `src/locale/es_es.json` | 460 | `src/lib/upstream/locale/es_es.json` | carried | 6 | unchanged |
+| `src/locale/fr_fr.json` | 460 | `src/lib/upstream/locale/fr_fr.json` | carried | 6 | unchanged |
+| `src/locale/it_it.json` | 460 | `src/lib/upstream/locale/it_it.json` | carried | 6 | unchanged |
 | `src/theme/README.md` | 6 |  | not ported | - | upstream documentation |
 | `src/theme/index.ts` | 7 | `src/lib/upstream/theme/index.ts` | carried | 1 | unchanged |
 | `src/theme/theme.css` | 97 | `src/lib/upstream/theme/theme.css` | carried | 1 | unchanged |

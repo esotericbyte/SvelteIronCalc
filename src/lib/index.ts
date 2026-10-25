@@ -1,4 +1,4 @@
-// Public entry of ironcalc-svelte. See docs/parity.md for what is ported so far.
+// Public entry of ironcalc-svelte. See docs/parity.md for how it maps to upstream's.
 import initWasm, { Model } from "@ironcalc/wasm";
 import Button from "./components/Button/Button.svelte";
 import IconButton from "./components/Button/IconButton.svelte";
@@ -37,6 +37,7 @@ export type {
   ToggleButtonProperties,
 } from "./components/ToggleButton/ToggleButton.svelte";
 export type { TooltipProperties } from "./components/Tooltip/Tooltip.svelte";
+export type { IronCalcHandle } from "./components/IronCalc.svelte";
 export {
   darkThemeVariables,
   defaultThemeVariables,
@@ -66,5 +67,9 @@ export {
   Workbook,
 };
 
-/** Initializes the `@ironcalc/wasm` engine; await it before creating a model. */
+/**
+ * Initializes the `@ironcalc/wasm` engine; await it before creating a model.
+ * Upstream also initializes its i18next instance here; the translation lookup
+ * of this port needs no set-up.
+ */
 export const init: typeof initWasm = (moduleOrPath) => initWasm(moduleOrPath);

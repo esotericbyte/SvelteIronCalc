@@ -3,11 +3,20 @@
 
   Upstream puts the `ic-root` class (where the theme variables live) on
   `document.body` unless given a container; here the widget's own element is
-  the root, so nothing outside the widget is touched.
+  the root, so nothing outside the widget is touched. Upstream's imperative
+  handle (`IronCalcHandle`) is the component's exported `setLanguage`.
 -->
+<script lang="ts" module>
+  /** The widget's methods, as upstream's `IronCalcHandle` (bind the component instance). */
+  export interface IronCalcHandle {
+    setLanguage: (language: string) => void;
+  }
+</script>
+
 <script lang="ts">
   import type { Model } from "@ironcalc/wasm";
   import { untrack } from "svelte";
+  import { changeLanguage, getLanguage } from "../i18n";
   import "../upstream/theme/theme.css";
   import {
     type PartialIronCalcThemeVariables,
@@ -52,6 +61,22 @@
       return () => unsetThemeVariables(root);
     }
   });
+
+  /**
+   * Translates the widget into `language` (`en-US`, `en-GB`, `es-ES`,
+   * `fr-FR`, `de-DE` or `it-IT`) and sets the model's language to its first
+   * part, which translates the function names of formulas. As upstream, the
+   * translation language is shared by every widget on the page, and nothing
+   * changes when it is already `language`.
+   */
+  export function setLanguage(language: string): void {
+    if (getLanguage() !== language) {
+      changeLanguage(language);
+      const lang = language.split("-")[0];
+      model.setLanguage(lang);
+      workbook?.redraw();
+    }
+  }
 
   /** Re-reads the model; call after changing it from outside the widget. */
   export function redraw(): void {
