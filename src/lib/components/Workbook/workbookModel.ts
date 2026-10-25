@@ -1,9 +1,13 @@
 // The parts of upstream Workbook.tsx that read or change the model (the
-// formula bar, the sheet tabs, the clipboard and the edit actions), as plain
+// formula bar, the sheet tabs, the clipboard, the edit actions and the
+// toolbar's merging, borders and links), as plain
 // functions so they can be unit tested.
 import type {
+  BorderOptions,
   CellStyle,
   ClipboardCell,
+  Color,
+  Link,
   Model,
   WorksheetProperties,
 } from "@ironcalc/wasm";
@@ -12,8 +16,13 @@ import {
   getNewClipboardId,
 } from "../../upstream/components/clipboard";
 import { getCellAddress, getEditorSize } from "../../upstream/components/util";
+import { LAST_COLUMN, LAST_ROW } from "../../upstream/components/WorksheetCanvas/constants";
 import type { WorkbookState } from "../../upstream/components/workbookState";
 import type { SheetOptions } from "../SheetTabBar/types";
+import type {
+  MergeCellsOperation,
+  MergeCellsState,
+} from "../Toolbar/Toolbar.svelte";
 
 /** The selection as shown in the formula bar address box (e.g. "B3", "A1:C4", "B:D"). */
 export function getSelectedAddress(model: Model): string {
@@ -342,4 +351,123 @@ export async function readClipboard(
     data.set("application/json", lastClipboardJson);
   }
   return (mimeType) => data.get(mimeType) ?? "";
+}
+
+function selectionIntersectsMergedCells(model: Model): boolean {
+  const area = getSelectedArea(model);
+  return model
+    .getMergedCells(area.sheet)
+    .some(
+      (m) =>
+        m.row <= area.row + area.height - 1 &&
+        m.row + m.height - 1 >= area.row &&
+        m.column <= area.column + area.width - 1 &&
+        m.column + m.width - 1 >= area.column,
+    );
+}
+
+/**
+ * What the toolbar's merge menu can do with the current selection. The menu
+ * merges a selection of more than one cell (as a single merged
+ * cell, centered, across or down) and unmerges a selection that intersects
+ * merged cells. Full-row and full-column selections can be neither merged
+ * nor unmerged.
+ */
+export function getMergeCellsState(model: Model): MergeCellsState {
+  const area = getSelectedArea(model);
+  if (area.width >= LAST_COLUMN || area.height >= LAST_ROW) {
+    return {
+      canMerge: false,
+      canMergeAcross: false,
+      canMergeDown: false,
+      canUnmerge: false,
+    };
+  }
+  const canUnmerge = selectionIntersectsMergedCells(model);
+  const canMerge = !canUnmerge && area.width * area.height > 1;
+  return {
+    canMerge,
+    // merging across (down) merges each row (column) separately, so it
+    // needs more than one column (row)
+    canMergeAcross: canMerge && area.width > 1,
+    canMergeDown: canMerge && area.height > 1,
+    canUnmerge,
+  };
+}
+
+/**
+ * Merges or unmerges the selection. Throws the engine's error when it is
+ * rejected (e.g. more than one cell has content).
+ */
+export function mergeSelectedCells(
+  model: Model,
+  operation: MergeCellsOperation,
+): void {
+  const area = getSelectedArea(model);
+  switch (operation) {
+    case "merge":
+      model.mergeCells(area);
+      break;
+    case "merge_center":
+      model.mergeCellsCenter(area);
+      break;
+    case "merge_across":
+      model.mergeCellsAcross(area);
+      break;
+    case "merge_down":
+      model.mergeCellsDown(area);
+      break;
+    case "unmerge":
+      model.unmergeCells(area);
+      break;
+  }
+}
+
+/** Applies a border of the toolbar's border picker to the selection. */
+export function setSelectedAreaBorder(model: Model, border: BorderOptions): void {
+  model.setAreaWithBorder(getSelectedArea(model), {
+    type: border.border,
+    item: border,
+  });
+}
+
+/** Clears the formatting (not the contents) of the selection. */
+export function clearSelectedFormatting(model: Model): void {
+  const {
+    sheet,
+    range: [rowStart, columnStart, rowEnd, columnEnd],
+  } = model.getSelectedView();
+  model.rangeClearFormatting(sheet, rowStart, columnStart, rowEnd, columnEnd);
+}
+
+/** Converts a color for `updateRangeStyle` ("" clears it). */
+export function colorToParam(color: Color): string {
+  if (color === undefined) {
+    return "";
+  }
+  if (typeof color === "string") {
+    return color;
+  }
+  return `[${color[0]}, ${color[1]}]`;
+}
+
+/**
+ * Sets the link of a cell from the link dialog. The cell content is the
+ * displayed text of the link. If the label is empty, it falls back to the
+ * link target/location (for emails, just the address without the mailto
+ * parameters). The link, the cell content and (for new links) the link
+ * style change in a single undo step.
+ */
+export function saveCellLink(
+  model: Model,
+  cell: { sheet: number; row: number; column: number },
+  link: Link,
+  label: string,
+): void {
+  const text =
+    label.trim() ||
+    (link.type === "External"
+      ? link.target.replace(/^mailto:/, "").split("?")[0]
+      : link.location);
+  model.setCellLink(cell.sheet, cell.row, cell.column, link, text);
 }

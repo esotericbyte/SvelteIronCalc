@@ -3,19 +3,23 @@ import { describe, expect, it } from "vitest";
 import Workbook from "../src/lib/components/Workbook/Workbook.svelte";
 import {
   clearSelectedContents,
+  colorToParam,
   getClipboardData,
   getFormulaValue,
+  getMergeCellsState,
   getSelectedAddress,
   getSelectedStyles,
   getSheetOptions,
+  mergeSelectedCells,
   pasteClipboardData,
+  saveCellLink,
   selectNextSheet,
   selectPreviousSheet,
   selectSheet,
   startEditing,
 } from "../src/lib/components/Workbook/workbookModel";
 import { WorkbookState } from "../src/lib/upstream/components/workbookState";
-import { LAST_ROW } from "../src/lib/upstream/components/WorksheetCanvas/constants";
+import { LAST_COLUMN, LAST_ROW } from "../src/lib/upstream/components/WorksheetCanvas/constants";
 import { buildSampleWorkbook } from "../src/routes/sampleWorkbook";
 
 describe("formula bar wiring", () => {
@@ -138,5 +142,74 @@ describe("edit actions", () => {
     model.setSelectedCell(1, 1);
     component.copyStyles();
     expect(workbookState.getCopyStyles()?.[0][0].font.b).toBe(true);
+  });
+});
+
+describe("toolbar wiring", () => {
+  it("tells what the merge menu can do with the selection", () => {
+    const model = buildSampleWorkbook();
+    model.setSelectedCell(12, 3);
+    expect(getMergeCellsState(model)).toEqual({
+      canMerge: false,
+      canMergeAcross: false,
+      canMergeDown: false,
+      canUnmerge: false,
+    });
+    model.setSelectedRange(12, 3, 13, 3);
+    expect(getMergeCellsState(model)).toEqual({
+      canMerge: true,
+      canMergeAcross: false,
+      canMergeDown: true,
+      canUnmerge: false,
+    });
+    // the sample's merged title is B7:D8
+    model.setSelectedCell(6, 3);
+    model.setSelectedRange(6, 3, 7, 3);
+    expect(getMergeCellsState(model).canUnmerge).toBe(true);
+    expect(getMergeCellsState(model).canMerge).toBe(false);
+    // whole rows and columns can be neither merged nor unmerged
+    model.setSelectedCell(1, 1);
+    model.setSelectedRange(1, 1, 1, LAST_COLUMN);
+    expect(getMergeCellsState(model).canMerge).toBe(false);
+  });
+
+  it("merges each row of the selection across", () => {
+    const model = buildSampleWorkbook();
+    model.setSelectedCell(30, 3);
+    model.setSelectedRange(30, 3, 31, 5);
+    mergeSelectedCells(model, "merge_across");
+    expect(model.getMergedCells(0)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ row: 30, column: 3, width: 3, height: 1 }),
+        expect.objectContaining({ row: 31, column: 3, width: 3, height: 1 }),
+      ]),
+    );
+    mergeSelectedCells(model, "unmerge");
+    expect(model.getMergedCells(0)).toHaveLength(1);
+    // two cells with content cannot be merged
+    model.setSelectedCell(2, 2);
+    model.setSelectedRange(2, 2, 2, 3);
+    expect(() => mergeSelectedCells(model, "merge")).toThrow(/more than one cell has content/);
+  });
+
+  it("converts the colors for a range style", () => {
+    expect(colorToParam(undefined)).toBe("");
+    expect(colorToParam("#FF0000")).toBe("#FF0000");
+    expect(colorToParam([3, 0.4])).toBe("[3, 0.4]");
+  });
+
+  it("labels a saved link with the label, else its target", () => {
+    const model = buildSampleWorkbook();
+    const cell = { sheet: 0, row: 30, column: 1 };
+    saveCellLink(model, cell, { type: "Internal", location: "Details!A1" }, "  ");
+    expect(model.getCellContent(0, 30, 1)).toBe("Details!A1");
+    saveCellLink(
+      model,
+      cell,
+      { type: "External", target: "https://example.com/page" },
+      "Example",
+    );
+    expect(model.getCellContent(0, 30, 1)).toBe("Example");
+    expect(model.getCellLink(0, 30, 1)).toMatchObject({ target: "https://example.com/page" });
   });
 });

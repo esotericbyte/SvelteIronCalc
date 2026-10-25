@@ -1,11 +1,12 @@
 <!--
   Port of upstream webapp/IronCalc/src/components/Workbook/Workbook.tsx:
-  formula bar, worksheet and sheet tabs, keyboard navigation, the edit
-  actions (typing and F2 to edit, Delete, undo/redo, the bold/italic/underline
-  shortcuts, copy, cut and paste, copying styles), the clipboard entries of
-  the cell context menu and the sheet management of the tab bar. The
-  toolbar, the right drawer and the link dialog come in later phases
-  (docs/parity.md).
+  toolbar, formula bar, worksheet and sheet tabs, keyboard navigation, the
+  edit actions (typing and F2 to edit, Delete, undo/redo, the
+  bold/italic/underline shortcuts, copy, cut and paste, copying styles), the
+  clipboard entries of the cell context menu, the sheet management of the
+  tab bar, the toolbar's handlers (styles, number formats, borders, merging,
+  themes, grid lines, the PNG export) and the link dialog. The right drawer
+  comes in a later phase (docs/parity.md).
 
   Keyboard handling stays inside the widget: the only key listener is on the
   focusable container below, and it ignores events whose target is anything
@@ -13,37 +14,54 @@
   keep their keys).
 -->
 <script lang="ts">
-  import type { Color, Model } from "@ironcalc/wasm";
+  import {
+    type BorderOptions,
+    type Color,
+    getThemeList,
+    type IronCalcTheme,
+    type Link,
+    type Model,
+  } from "@ironcalc/wasm";
   import { t } from "../../i18n";
   import { isInReferenceMode } from "../../upstream/components/Editor/util";
   import type { NavigationKey } from "../../upstream/components/util";
   import { LAST_COLUMN, LAST_ROW } from "../../upstream/components/WorksheetCanvas/constants";
+  import { devicePixelRatio } from "../../upstream/components/WorksheetCanvas/worksheetCanvas";
   import type { WorkbookState } from "../../upstream/components/workbookState";
   import FormulaBar from "../FormulaBar/FormulaBar.svelte";
+  import LinkDialog from "../LinkDialog/LinkDialog.svelte";
   import Alert from "../Modal/Alert.svelte";
   import SheetTabBar from "../SheetTabBar/SheetTabBar.svelte";
+  import Toolbar, { type MergeCellsOperation } from "../Toolbar/Toolbar.svelte";
   import Worksheet from "../Worksheet/Worksheet.svelte";
   import { createKeyDownHandler } from "./keyboardNavigation";
   import {
     clearSelectedContents,
+    clearSelectedFormatting,
+    colorToParam,
     getClipboardData,
     getFormulaValue,
+    getMergeCellsState,
     getSelectedAddress,
     getSelectedStyles,
     getSheetOptions,
+    mergeSelectedCells,
     pasteClipboardData,
     readClipboard,
+    saveCellLink,
     selectNextSheet,
     selectPreviousSheet,
     selectSheet,
+    setSelectedAreaBorder,
     startEditing,
     toggleFontStyle,
+    updateRangeStyle,
   } from "./workbookModel";
 
   interface Props {
     model: Model;
     workbookState: WorkbookState;
-    /** When false, the formula bar is read-only and all edits are blocked. */
+    /** When false, the toolbar is hidden, the formula bar is read-only and all edits are blocked. */
     canEdit?: boolean;
   }
 
@@ -58,21 +76,36 @@
   }
 
   let rootElement: HTMLDivElement | null = $state(null);
+  let worksheet: Worksheet | null = $state(null);
 
   let alertDialog: { title: string; message: string } | null = $state(null);
+
+  // The cell the link dialog operates on (null when the dialog is closed)
+  let linkDialogCell: { sheet: number; row: number; column: number } | null =
+    $state(null);
 
   // The JSON of the last copy or cut, for pastes whose clipboard lost it
   let lastClipboardJson: string | null = null;
 
+  const themes: IronCalcTheme[] = getThemeList();
+
   const view = $derived.by(() => {
     void version;
     const [formulaValue, canEditFormula] = getFormulaValue(model, workbookState);
+    const { sheet, row, column } = model.getSelectedView();
     return {
       cellAddress: getSelectedAddress(model),
       formulaValue,
       canEditFormula,
       sheets: getSheetOptions(model),
       selectedSheet: model.getSelectedSheet(),
+      style: model.getCellStyle(sheet, row, column).style,
+      canUndo: model.canUndo(),
+      canRedo: model.canRedo(),
+      mergeCellsState: getMergeCellsState(model),
+      showGridLines: model.getShowGridLines(model.getSelectedSheet()),
+      fmtSettings: model.getFmtSettings(),
+      currentTheme: model.getTheme(),
     };
   });
 
@@ -134,9 +167,9 @@
   }
 
   /**
-   * The format painter: remembers the styles of the selection; the next
-   * area selected gets them (see the worksheet), Escape cancels. Upstream
-   * starts it from the toolbar, which comes with phase 4.
+   * The format painter (the toolbar's copy styles): remembers the styles of
+   * the selection; the next area selected gets them (see the worksheet),
+   * Escape cancels.
    */
   export function copyStyles(): void {
     workbookState.setCopyStyles(getSelectedStyles(model));
@@ -370,6 +403,72 @@
     pasteData(getData);
   }
 
+  // A toolbar change: re-read the model and give the focus back to the
+  // sheet, as upstream's re-render does
+  function afterToolbarChange(): void {
+    refresh();
+    restoreFocus();
+  }
+
+  function setRangeStyle(stylePath: string, value: string): void {
+    updateRangeStyle(model, stylePath, value);
+    afterToolbarChange();
+  }
+
+  function onMergeCells(operation: MergeCellsOperation): void {
+    try {
+      mergeSelectedCells(model, operation);
+    } catch (e) {
+      if (`${e}`.includes("more than one cell has content")) {
+        alertDialog = {
+          title: t("error_dialog.error_merging_cells"),
+          message: t("error_dialog.error_merging_cells_content"),
+        };
+      }
+      // other failures (e.g. merging over an array formula) stay silent
+    }
+    afterToolbarChange();
+  }
+
+  // Creates a new canvas element in the visible part of the selected area
+  // and downloads it as ironcalc.png
+  function downloadPNG(): void {
+    const worksheetCanvas = worksheet?.getCanvas();
+    if (!worksheetCanvas) {
+      return;
+    }
+    const {
+      range: [rowStart, columnStart, rowEnd, columnEnd],
+    } = model.getSelectedView();
+    // NB: cells outside of the displayed area are not rendered
+    // I think the only reasonable way to do this would be server side.
+    let [x, y] = worksheetCanvas.getCoordinatesByCell(rowStart, columnStart);
+    const [x1, y1] = worksheetCanvas.getCoordinatesByCell(rowEnd + 1, columnEnd + 1);
+    const width = (x1 - x) * devicePixelRatio;
+    const height = (y1 - y) * devicePixelRatio;
+    x *= devicePixelRatio;
+    y *= devicePixelRatio;
+
+    const capturedCanvas = document.createElement("canvas");
+    capturedCanvas.width = width;
+    capturedCanvas.height = height;
+    const ctx = capturedCanvas.getContext("2d");
+    if (!ctx) {
+      return;
+    }
+    ctx.drawImage(worksheetCanvas.canvas, x, y, width, height, 0, 0, width, height);
+
+    const downloadLink = document.createElement("a");
+    downloadLink.href = capturedCanvas.toDataURL("image/png");
+    downloadLink.download = "ironcalc.png";
+    downloadLink.click();
+    restoreFocus();
+  }
+
+  function openLinkDialog(sheet: number, row: number, column: number): void {
+    linkDialogCell = { sheet, row, column };
+  }
+
   // A rejected sheet change (e.g. a name already taken) shows the engine's
   // error, which upstream puts in a window.alert
   function trySheetChange(change: () => void): void {
@@ -412,6 +511,84 @@
   oncut={onCut}
   onpaste={onPaste}
 >
+  {#if canEdit}
+    <Toolbar
+      canUndo={view.canUndo}
+      canRedo={view.canRedo}
+      onRedo={() => {
+        redo();
+        restoreFocus();
+      }}
+      onUndo={() => {
+        undo();
+        restoreFocus();
+      }}
+      onToggleUnderline={(value) => setRangeStyle("font.u", `${value}`)}
+      onToggleBold={(value) => setRangeStyle("font.b", `${value}`)}
+      onToggleItalic={(value) => setRangeStyle("font.i", `${value}`)}
+      onToggleStrike={(value) => setRangeStyle("font.strike", `${value}`)}
+      onToggleHorizontalAlign={(value) => setRangeStyle("alignment.horizontal", value)}
+      onToggleVerticalAlign={(value) => setRangeStyle("alignment.vertical", value)}
+      onToggleWrapText={(value) => setRangeStyle("alignment.wrap_text", `${value}`)}
+      onCopyStyles={() => {
+        copyStyles();
+        restoreFocus();
+      }}
+      onTextColorPicked={(color) => setRangeStyle("font.color", colorToParam(color))}
+      onFillColorPicked={(color) => setRangeStyle("fill.color", colorToParam(color))}
+      onNumberFormatPicked={(numberFmt) => setRangeStyle("num_fmt", numberFmt)}
+      onClearFormatting={() => {
+        clearSelectedFormatting(model);
+        afterToolbarChange();
+      }}
+      onIncreaseFontSize={(delta) => setRangeStyle("font.size_delta", `${delta}`)}
+      onSetFontSize={(size, keepFocus) => {
+        updateRangeStyle(model, "font.size", `${size}`);
+        refresh();
+        if (!keepFocus) {
+          restoreFocus();
+        }
+      }}
+      onDownloadPNG={downloadPNG}
+      onBorderChanged={(border: BorderOptions) => {
+        setSelectedAreaBorder(model, border);
+        refresh();
+      }}
+      fillColor={view.style.fill.color}
+      fontColor={view.style.font.color}
+      fontSize={view.style.font.sz}
+      bold={view.style.font.b}
+      underline={view.style.font.u}
+      italic={view.style.font.i}
+      strike={view.style.font.strike}
+      horizontalAlign={view.style.alignment ? view.style.alignment.horizontal : "general"}
+      verticalAlign={view.style.alignment?.vertical ? view.style.alignment.vertical : "bottom"}
+      wrapText={view.style.alignment?.wrap_text || false}
+      mergeCellsState={view.mergeCellsState}
+      {onMergeCells}
+      canEdit={true}
+      numFmt={view.style.num_fmt}
+      showGridLines={view.showGridLines}
+      onToggleShowGridLines={(show) => {
+        model.setShowGridLines(model.getSelectedSheet(), show);
+        afterToolbarChange();
+      }}
+      formatOptions={view.fmtSettings}
+      isConditionalFormattingOpen={false}
+      isNamedStylesOpen={false}
+      onOpenLinkDialog={() => {
+        const { sheet, row, column } = model.getSelectedView();
+        openLinkDialog(sheet, row, column);
+      }}
+      {themes}
+      currentTheme={view.currentTheme}
+      onThemePicked={(theme) => {
+        model.setTheme(theme);
+        afterToolbarChange();
+      }}
+      onPopupClosed={restoreFocus}
+    />
+  {/if}
   <div class="ic-workbook-worksheet-area-left">
     <FormulaBar
       cellAddress={view.cellAddress}
@@ -424,6 +601,7 @@
       {version}
     />
     <Worksheet
+      bind:this={worksheet}
       {model}
       {workbookState}
       {version}
@@ -439,6 +617,15 @@
         document.execCommand("copy");
       }}
       onPaste={handlePaste}
+      onEditLink={canEdit
+        ? (row, column) => openLinkDialog(model.getSelectedSheet(), row, column)
+        : undefined}
+      onDeleteLink={canEdit
+        ? (row, column) => {
+            model.deleteCellLink(model.getSelectedSheet(), row, column);
+            refresh();
+          }
+        : undefined}
       {restoreFocus}
     />
     <SheetTabBar
@@ -492,6 +679,29 @@
     title={alertDialog?.title ?? ""}
     message={alertDialog?.message ?? ""}
   />
+  {#if linkDialogCell}
+    {@const cell = linkDialogCell}
+    {@const sheetNames = view.sheets.map((sheet) => sheet.name)}
+    <LinkDialog
+      open
+      onClose={() => {
+        linkDialogCell = null;
+        restoreFocus();
+      }}
+      {sheetNames}
+      selectedSheetName={sheetNames[cell.sheet] ?? sheetNames[0] ?? ""}
+      initialLink={model.getCellLink(cell.sheet, cell.row, cell.column) ?? null}
+      initialLabel={model.getFormattedCellValue(cell.sheet, cell.row, cell.column)}
+      onSave={(link: Link, label: string) => {
+        saveCellLink(model, cell, link, label);
+        refresh();
+      }}
+      onDelete={() => {
+        model.deleteCellLink(cell.sheet, cell.row, cell.column);
+        refresh();
+      }}
+    />
+  {/if}
 </div>
 
 <style>
@@ -508,12 +718,15 @@
     height: 100%;
     position: relative;
     font-family: var(--typography-font-family);
-    /* The toolbar (upstream shows it whenever editing is allowed) comes with
-       phase 4; until then no space is reserved for it. */
-    --toolbar-height: 0px;
   }
 
   .ic-workbook-container:focus {
     outline: none;
+  }
+
+  /* In read-only mode the toolbar is not rendered, so collapse the space
+     reserved for it (worksheet area and right drawer offset by it). */
+  .ic-workbook-container--readonly {
+    --toolbar-height: 0px;
   }
 </style>

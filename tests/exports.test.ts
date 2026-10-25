@@ -3,7 +3,7 @@ import * as lib from "../src/lib";
 import * as xlsx from "../src/lib/xlsx";
 
 describe("package entry points", () => {
-  it("exports the widget, its UI primitives and the engine helpers", () => {
+  it("exports the widget, its UI primitives, the logos and the engine helpers", () => {
     expect(Object.keys(lib).sort()).toEqual([
       "Button",
       "Checkbox",
@@ -11,6 +11,9 @@ describe("package entry points", () => {
       "IconButton",
       "Input",
       "IronCalc",
+      "IronCalcIcon",
+      "IronCalcIconWhite",
+      "IronCalcLogo",
       "Menu",
       "MenuDivider",
       "MenuItem",

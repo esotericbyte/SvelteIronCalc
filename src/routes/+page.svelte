@@ -1,9 +1,13 @@
 <!--
   Development demo: open an .xlsx file (or the generated sample) in the
   widget, edit it, and download the model back as .xlsx. The lock button
-  switches the widget to read-only (`canEdit={false}`). Right-click the
-  cells, the column or row headers and the sheet tabs for their menus;
-  going back to the sample asks first, with the exported Confirm dialog.
+  switches the widget to read-only (`canEdit={false}`), which also hides the
+  toolbar. The toolbar opens the number format, merge and theme menus, the
+  color and border pickers and the link dialog (also reached from the link
+  tooltip of the sample's link); right-click the cells, the column or row
+  headers and the sheet tabs for their menus. Going back to the sample asks
+  first, with the exported Confirm dialog. The header shows the exported
+  IronCalcIcon.
 -->
 <script lang="ts">
   import Download from "@lucide/svelte/icons/download";
@@ -14,7 +18,14 @@
   import Moon from "@lucide/svelte/icons/moon";
   import Sun from "@lucide/svelte/icons/sun";
   import { onMount } from "svelte";
-  import { Confirm, darkThemeVariables, init, IronCalc, type Model } from "$lib";
+  import {
+    Confirm,
+    darkThemeVariables,
+    init,
+    IronCalc,
+    IronCalcIcon,
+    type Model,
+  } from "$lib";
   import { downloadXlsx, initXlsx, modelFromXlsx } from "$lib/xlsx";
   import { buildSampleWorkbook } from "./sampleWorkbook";
 
@@ -54,7 +65,9 @@
   <header
     class="flex flex-wrap items-center gap-2 border-b border-surface-200-800 px-4 py-2"
   >
-    <h1 class="h6 mr-auto">ironcalc-svelte</h1>
+    <h1 class="h6 mr-auto flex items-center gap-2">
+      <IronCalcIcon width={20} height={20} />ironcalc-svelte
+    </h1>
     <input
       bind:this={fileInput}
       type="file"

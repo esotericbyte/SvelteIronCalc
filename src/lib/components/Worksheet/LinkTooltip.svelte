@@ -1,11 +1,15 @@
 <!--
-  Port of upstream webapp/IronCalc/src/components/Worksheet/LinkTooltip.tsx.
-  The edit and break-link actions belong to editing and are not ported yet.
+  Port of upstream webapp/IronCalc/src/components/Worksheet/LinkTooltip.tsx:
+  the link of the hovered cell, to follow, copy, edit (in the link dialog)
+  or break. Without `onEdit` / `onDelete` (read-only) those actions are not
+  shown.
 -->
 <script lang="ts">
   import type { CellLink } from "@ironcalc/wasm";
   import Copy from "@lucide/svelte/icons/copy";
   import Globe from "@lucide/svelte/icons/globe";
+  import Link2Off from "@lucide/svelte/icons/link-2-off";
+  import PencilLine from "@lucide/svelte/icons/pencil-line";
   import { t } from "../../i18n";
   import type { LinkHoverCell } from "../../upstream/components/WorksheetCanvas/cellLinks";
   import {
@@ -16,13 +20,22 @@
   interface Props {
     cell: LinkHoverCell;
     onFollow: (link: CellLink) => void;
+    onEdit?: (row: number, column: number) => void;
+    onDelete?: (row: number, column: number) => void;
     onHide: () => void;
     onPointerEnter: () => void;
     onPointerLeave: () => void;
   }
 
-  let { cell, onFollow, onHide, onPointerEnter, onPointerLeave }: Props =
-    $props();
+  let {
+    cell,
+    onFollow,
+    onEdit,
+    onDelete,
+    onHide,
+    onPointerEnter,
+    onPointerLeave,
+  }: Props = $props();
 
   function linkLabel(link: CellLink): string {
     if (link.type === "Internal") {
@@ -103,6 +116,36 @@
       >
         <Copy />
       </button>
+      <!-- Dynamic links (created by formulas like HYPERLINK) cannot be edited
+        or deleted: only the formula itself can change them. -->
+      {#if onEdit && !link.dynamic}
+        <button
+          type="button"
+          class="ic-worksheet-link-tooltip-button"
+          title={t("link_tooltip.edit")}
+          aria-label={t("link_tooltip.edit")}
+          onclick={() => {
+            onHide();
+            onEdit(cell.row, cell.column);
+          }}
+        >
+          <PencilLine />
+        </button>
+      {/if}
+      {#if onDelete && !link.dynamic}
+        <button
+          type="button"
+          class="ic-worksheet-link-tooltip-button"
+          title={t("link_tooltip.break")}
+          aria-label={t("link_tooltip.break")}
+          onclick={() => {
+            onHide();
+            onDelete(cell.row, cell.column);
+          }}
+        >
+          <Link2Off />
+        </button>
+      {/if}
     </div>
   </div>
   {#if link.tooltip}

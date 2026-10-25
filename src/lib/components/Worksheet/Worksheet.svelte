@@ -50,6 +50,9 @@
     onCut: () => void;
     onCopy: () => void;
     onPaste: () => void;
+    /** The link tooltip's edit and break-link actions (none when read-only). */
+    onEditLink?: (row: number, column: number) => void;
+    onDeleteLink?: (row: number, column: number) => void;
     /** Gives the focus back to the workbook after a menu or dialog closed. */
     restoreFocus: () => void;
   }
@@ -64,6 +67,8 @@
     onCut,
     onCopy,
     onPaste,
+    onEditLink,
+    onDeleteLink,
     restoreFocus,
   }: Props = $props();
 
@@ -652,6 +657,8 @@
       <LinkTooltip
         cell={linkTooltipCell}
         onFollow={(link) => worksheetCanvas?.followLink(link)}
+        onEdit={onEditLink}
+        onDelete={onDeleteLink}
         onHide={hideLinkTooltip}
         onPointerEnter={cancelHideLinkTooltip}
         onPointerLeave={scheduleHideLinkTooltip}

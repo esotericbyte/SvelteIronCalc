@@ -1,0 +1,22 @@
+// Port of upstream webapp/IronCalc/src/icons/index.ts: upstream's own SVG
+// icons, for the glyphs Lucide has no match for, as Svelte components.
+export { default as ArrowMiddleFromLine } from "./ArrowMiddleFromLine.svelte";
+export { default as BorderBottomIcon } from "./BorderBottomIcon.svelte";
+export { default as BorderCenterHIcon } from "./BorderCenterHIcon.svelte";
+export { default as BorderCenterVIcon } from "./BorderCenterVIcon.svelte";
+export { default as BorderInnerIcon } from "./BorderInnerIcon.svelte";
+export { default as BorderLeftIcon } from "./BorderLeftIcon.svelte";
+export { default as BorderNoneIcon } from "./BorderNoneIcon.svelte";
+export { default as BorderOuterIcon } from "./BorderOuterIcon.svelte";
+export { default as BorderRightIcon } from "./BorderRightIcon.svelte";
+export { default as BorderTopIcon } from "./BorderTopIcon.svelte";
+export { default as DeleteColumnIcon } from "./DeleteColumnIcon.svelte";
+export { default as DeleteRowIcon } from "./DeleteRowIcon.svelte";
+export { default as Fx } from "./Fx.svelte";
+export { default as InsertColumnLeftIcon } from "./InsertColumnLeftIcon.svelte";
+export { default as InsertColumnRightIcon } from "./InsertColumnRightIcon.svelte";
+export { default as InsertRowAboveIcon } from "./InsertRowAboveIcon.svelte";
+export { default as InsertRowBelow } from "./InsertRowBelow.svelte";
+export { default as IronCalcIcon } from "./IronCalcIcon.svelte";
+export { default as IronCalcIconWhite } from "./IronCalcIconWhite.svelte";
+export { default as IronCalcLogo } from "./IronCalcLogo.svelte";

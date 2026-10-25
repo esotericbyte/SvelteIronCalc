@@ -3,6 +3,7 @@ import initWasm, { Model } from "@ironcalc/wasm";
 import Button from "./components/Button/Button.svelte";
 import IconButton from "./components/Button/IconButton.svelte";
 import Checkbox from "./components/Checkbox/Checkbox.svelte";
+import { IronCalcIcon, IronCalcIconWhite, IronCalcLogo } from "./components/icons";
 import Input from "./components/Input/Input.svelte";
 import IronCalc from "./components/IronCalc.svelte";
 import Menu from "./components/Menu/Menu.svelte";
@@ -49,6 +50,9 @@ export {
   IconButton,
   Input,
   IronCalc,
+  IronCalcIcon,
+  IronCalcIconWhite,
+  IronCalcLogo,
   Menu,
   MenuDivider,
   MenuItem,
