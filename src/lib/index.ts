@@ -11,6 +11,7 @@ import MenuDivider from "./components/Menu/MenuDivider.svelte";
 import MenuItem from "./components/Menu/MenuItem.svelte";
 import MenuItemWithSubmenu from "./components/Menu/MenuItemWithSubmenu.svelte";
 import Confirm from "./components/Modal/Confirm.svelte";
+import Switch from "./components/Switch/Switch.svelte";
 import ToggleButton from "./components/ToggleButton/ToggleButton.svelte";
 import Tooltip from "./components/Tooltip/Tooltip.svelte";
 import Workbook from "./components/Workbook/Workbook.svelte";
@@ -30,6 +31,7 @@ export type { MenuProperties } from "./components/Menu/Menu.svelte";
 export type { MenuItemProperties } from "./components/Menu/MenuItem.svelte";
 export type { MenuItemWithSubmenuProps } from "./components/Menu/MenuItemWithSubmenu.svelte";
 export type { ConfirmProperties } from "./components/Modal/Confirm.svelte";
+export type { SwitchProperties } from "./components/Switch/Switch.svelte";
 export type {
   ToggleButtonOption,
   ToggleButtonProperties,
@@ -58,6 +60,7 @@ export {
   MenuItem,
   MenuItemWithSubmenu,
   Model,
+  Switch,
   ToggleButton,
   Tooltip,
   Workbook,

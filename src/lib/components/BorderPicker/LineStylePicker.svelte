@@ -46,7 +46,8 @@
 
 <style>
   /* Port of upstream BorderPicker/line-style-picker.css; the buttons share
-     the border picker's styles */
+     the border picker's styles. The line previews are global: the cell
+     style editor of the right drawer shows them too, as upstream */
   .ic-line-style-picker {
     position: absolute;
     top: 0;
@@ -62,25 +63,25 @@
     box-shadow: var(--shadow-md);
   }
 
-  .ic-line-preview {
+  :global(.ic-line-preview) {
     display: block;
     width: 68px;
     color: var(--palette-grey-900);
   }
 
-  .ic-line-preview.thin {
+  :global(.ic-line-preview.thin) {
     border-top: 1px solid currentColor;
   }
 
-  .ic-line-preview.medium {
+  :global(.ic-line-preview.medium) {
     border-top: 2px solid currentColor;
   }
 
-  .ic-line-preview.thick {
+  :global(.ic-line-preview.thick) {
     border-top: 3px solid currentColor;
   }
 
-  .ic-line-preview.double {
+  :global(.ic-line-preview.double) {
     height: 3px;
     background: linear-gradient(
       to bottom,
@@ -93,15 +94,15 @@
     );
   }
 
-  .ic-line-preview.dotted {
+  :global(.ic-line-preview.dotted) {
     border-top: 1px dotted currentColor;
   }
 
-  .ic-line-preview.medium-dashed {
+  :global(.ic-line-preview.medium-dashed) {
     border-top: 2px dashed currentColor;
   }
 
-  .ic-line-preview.slant-dash-dot {
+  :global(.ic-line-preview.slant-dash-dot) {
     height: 1px;
     background: repeating-linear-gradient(
       90deg,
@@ -112,7 +113,7 @@
     );
   }
 
-  .ic-line-preview.medium-dash-dot {
+  :global(.ic-line-preview.medium-dash-dot) {
     height: 2px;
     background: repeating-linear-gradient(
       90deg,
@@ -123,7 +124,7 @@
     );
   }
 
-  .ic-line-preview.medium-dash-dot-dot {
+  :global(.ic-line-preview.medium-dash-dot-dot) {
     height: 2px;
     background: repeating-linear-gradient(
       90deg,

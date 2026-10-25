@@ -5,8 +5,9 @@
   bold/italic/underline shortcuts, copy, cut and paste, copying styles), the
   clipboard entries of the cell context menu, the sheet management of the
   tab bar, the toolbar's handlers (styles, number formats, borders, merging,
-  themes, grid lines, the PNG export) and the link dialog. The right drawer
-  comes in a later phase (docs/parity.md).
+  themes, grid lines, the PNG export), the link dialog and the right drawer
+  (named ranges, cell styles, conditional formatting, themes, regional
+  settings) with the toolbar, formula bar and sheet tab buttons opening it.
 
   Keyboard handling stays inside the widget: the only key listener is on the
   focusable container below, and it ignores events whose target is anything
@@ -24,13 +25,21 @@
   } from "@ironcalc/wasm";
   import { t } from "../../i18n";
   import { isInReferenceMode } from "../../upstream/components/Editor/util";
-  import type { NavigationKey } from "../../upstream/components/util";
+  import { getFullRangeToString, type NavigationKey } from "../../upstream/components/util";
   import { LAST_COLUMN, LAST_ROW } from "../../upstream/components/WorksheetCanvas/constants";
   import { devicePixelRatio } from "../../upstream/components/WorksheetCanvas/worksheetCanvas";
   import type { WorkbookState } from "../../upstream/components/workbookState";
   import FormulaBar from "../FormulaBar/FormulaBar.svelte";
   import LinkDialog from "../LinkDialog/LinkDialog.svelte";
   import Alert from "../Modal/Alert.svelte";
+  import type {
+    NamedStyleSavePayload,
+    SaveError,
+  } from "../RightDrawer/NamedStyles/EditNamedStyle.svelte";
+  import RightDrawer, {
+    DEFAULT_DRAWER_WIDTH,
+    type DrawerType,
+  } from "../RightDrawer/RightDrawer.svelte";
   import SheetTabBar from "../SheetTabBar/SheetTabBar.svelte";
   import Toolbar, { type MergeCellsOperation } from "../Toolbar/Toolbar.svelte";
   import Worksheet from "../Worksheet/Worksheet.svelte";
@@ -79,6 +88,14 @@
   let worksheet: Worksheet | null = $state(null);
 
   let alertDialog: { title: string; message: string } | null = $state(null);
+  let isDrawerOpen = $state(false);
+  let drawerWidth = $state(DEFAULT_DRAWER_WIDTH);
+  let drawerType: DrawerType = $state("namedRanges");
+
+  function openDrawer(type: DrawerType): void {
+    drawerType = type;
+    isDrawerOpen = true;
+  }
 
   // The cell the link dialog operates on (null when the dialog is closed)
   let linkDialogCell: { sheet: number; row: number; column: number } | null =
@@ -108,6 +125,35 @@
       currentTheme: model.getTheme(),
     };
   });
+
+  // What the right drawer shows of the model
+  const drawerView = $derived.by(() => {
+    void version;
+    const builtinStyles = model.getBuiltinNamedStyles();
+    const builtinNames = new Set(builtinStyles.map((s) => s.name.toLowerCase()));
+    return {
+      builtinStyles,
+      customStyles: model
+        .getNamedStyleList()
+        .filter((name) => !builtinNames.has(name.toLowerCase()))
+        .map((name) => ({ name, style: model.getNamedStyle(name) })),
+      locale: model.getLocale(),
+      timezone: model.getTimezone(),
+      language: model.getLanguage(),
+    };
+  });
+
+  // A named style the engine refused (a name taken, ...) keeps the editor
+  // open with the engine's error under the name
+  function saveNamedStyle(save: () => void): SaveError {
+    try {
+      save();
+      refresh();
+      return { nameError: "" };
+    } catch (e) {
+      return { nameError: e instanceof Error ? e.message : String(e) };
+    }
+  }
 
   function focusWorkbook(): void {
     if (!rootElement) {
@@ -503,7 +549,7 @@
     // so like upstream this listens to click), but leave it with any control
     // (button, menu, input) that was clicked
     const target = event.target as Element;
-    if (!target.closest("button, input, textarea, select, [role='tab']")) {
+    if (!target.closest("button, input, textarea, select, label, [role='tab']")) {
       focusWorkbook();
     }
   }}
@@ -574,8 +620,10 @@
         afterToolbarChange();
       }}
       formatOptions={view.fmtSettings}
-      isConditionalFormattingOpen={false}
-      isNamedStylesOpen={false}
+      onOpenConditionalFormatting={() => openDrawer("conditionalFormatting")}
+      isConditionalFormattingOpen={isDrawerOpen && drawerType === "conditionalFormatting"}
+      onOpenNamedStyles={() => openDrawer("namedStyles")}
+      isNamedStylesOpen={isDrawerOpen && drawerType === "namedStyles"}
       onOpenLinkDialog={() => {
         const { sheet, row, column } = model.getSelectedView();
         openLinkDialog(sheet, row, column);
@@ -586,10 +634,14 @@
         model.setTheme(theme);
         afterToolbarChange();
       }}
+      onOpenThemes={() => openDrawer("themes")}
       onPopupClosed={restoreFocus}
     />
   {/if}
-  <div class="ic-workbook-worksheet-area-left">
+  <div
+    class="ic-workbook-worksheet-area-left"
+    style:width={isDrawerOpen ? `calc(100% - ${drawerWidth}px)` : "100%"}
+  >
     <FormulaBar
       cellAddress={view.cellAddress}
       formulaValue={view.formulaValue}
@@ -597,6 +649,7 @@
       {workbookState}
       onChange={onEditEnd}
       onTextUpdated={refresh}
+      openDrawer={() => openDrawer("namedRanges")}
       canEdit={canEdit && view.canEditFormula}
       {version}
     />
@@ -670,9 +723,62 @@
       onMoveSheet={(fromIndex: number, toIndex: number) => {
         trySheetChange(() => model.moveSheet(fromIndex, toIndex));
       }}
+      onOpenRegionalSettings={() => openDrawer("regionalSettings")}
       {restoreFocus}
     />
   </div>
+  {#if isDrawerOpen}
+    <RightDrawer
+      onClose={() => {
+        isDrawerOpen = false;
+        restoreFocus();
+      }}
+      width={drawerWidth}
+      onWidthChange={(width) => (drawerWidth = width)}
+      {model}
+      {version}
+      onUpdate={refresh}
+      getSelectedArea={() => {
+        const worksheetNames = model.getWorksheetsProperties().map((s) => s.name);
+        return getFullRangeToString(model.getSelectedView(), worksheetNames);
+      }}
+      {drawerType}
+      {themes}
+      currentTheme={view.currentTheme}
+      onThemePicked={(theme) => {
+        model.setTheme(theme);
+        refresh();
+      }}
+      customStyles={drawerView.customStyles}
+      builtinStyles={drawerView.builtinStyles}
+      formatOptions={view.fmtSettings}
+      onApplyNamedStyle={(name) => {
+        model.onApplyNamedStyle(name);
+        refresh();
+      }}
+      onAddNamedStyle={(payload: NamedStyleSavePayload) =>
+        saveNamedStyle(() =>
+          model.createNamedStyle(payload.name, payload.style, payload.includes),
+        )}
+      onUpdateNamedStyle={(originalName: string, payload: NamedStyleSavePayload) =>
+        saveNamedStyle(() =>
+          model.updateNamedStyle(originalName, payload.name, payload.style, payload.includes),
+        )}
+      onDeleteNamedStyle={(name) => {
+        model.deleteNamedStyle(name);
+        refresh();
+      }}
+      initialLocale={drawerView.locale}
+      initialTimezone={drawerView.timezone}
+      initialLanguage={drawerView.language}
+      onSettingsSave={(locale, timezone, language) => {
+        model.setLocale(locale);
+        model.setTimezone(timezone);
+        model.setLanguage(language);
+        refresh();
+      }}
+    />
+  {/if}
   <Alert
     open={alertDialog !== null}
     onClose={() => (alertDialog = null)}

@@ -1,15 +1,17 @@
 <!--
   Port of upstream webapp/IronCalc/src/components/FormulaBar/FormulaBar.tsx:
-  the address box and the formula editor of the selected cell. The
-  named-ranges menu behind the address box comes with the right drawer (see
-  docs/parity.md).
+  the address box, which opens the named-ranges menu, and the formula editor
+  of the selected cell.
 -->
 <script lang="ts">
   import type { Model } from "@ironcalc/wasm";
+  import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import { getEditorSize } from "../../upstream/components/util";
   import type { WorkbookState } from "../../upstream/components/workbookState";
+  import Button from "../Button/Button.svelte";
   import Editor from "../Editor/Editor.svelte";
   import Fx from "../icons/Fx.svelte";
+  import FormulaBarMenu from "./FormulaBarMenu.svelte";
 
   interface Props {
     cellAddress: string;
@@ -19,6 +21,8 @@
     /** Called when an edit started here ends. */
     onChange: () => void;
     onTextUpdated: () => void;
+    /** Opens the named ranges drawer. */
+    openDrawer: () => void;
     canEdit: boolean;
     /** Bumped by the workbook whenever the model or the runtime state changed. */
     version: number;
@@ -31,14 +35,22 @@
     workbookState,
     onChange,
     onTextUpdated,
+    openDrawer,
     canEdit,
     version,
   }: Props = $props();
 </script>
 
 <div class="ic-formula-bar-root">
-  <div class="ic-formula-bar-address" data-testid="ic-formula-bar-address">
-    {cellAddress}
+  <div class="ic-formula-bar-address">
+    <FormulaBarMenu {openDrawer} {canEdit} {model} {version} onUpdate={onChange}>
+      {#snippet trigger(attributes)}
+        <Button {...attributes} variant="ghost" size="sm" data-testid="ic-formula-bar-address">
+          {cellAddress}
+          {#snippet endIcon()}<ChevronDown />{/snippet}
+        </Button>
+      {/snippet}
+    </FormulaBarMenu>
   </div>
   <div class="ic-formula-bar-divider"></div>
   <div class="ic-formula-bar-formula-container">
@@ -137,21 +149,19 @@
     margin-left: 0;
   }
 
-  /* Upstream renders the address as a small ghost button (it opens the
-     named-ranges menu); until that menu is ported it is a plain label. */
   .ic-formula-bar-address {
     display: flex;
     align-items: center;
-    min-width: 40px;
-    height: 28px;
-    padding: 0 8px;
     margin-left: 8px;
-    border-radius: 4px;
-    font-size: 12px;
-    font-weight: 600;
-    font-style: normal;
+    font-weight: 400;
     color: var(--palette-common-black);
     white-space: nowrap;
+  }
+
+  .ic-formula-bar-address :global(.ic-button) {
+    min-width: 40px;
+    font-size: 12px;
+    font-weight: 600;
   }
 
   .ic-formula-bar-editor-wrapper {

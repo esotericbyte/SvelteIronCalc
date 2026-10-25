@@ -10,8 +10,8 @@
   does not fit, with arrows at the ends.
 
   The conditional formatting and cell styles buttons and the theme menu's
-  "Manage themes" open the right drawer, which comes with phase 5: without
-  their handlers they are disabled.
+  "Manage themes" open the right drawer; without their handlers they are
+  disabled.
 -->
 <script lang="ts" module>
   export type MergeCellsOperation =

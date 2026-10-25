@@ -1,6 +1,7 @@
 // Builds a small generated workbook that exercises what the widget
 // shows: values and formulas, an array formula, styles, a merged range,
-// frozen panes, a link and several sheets (one hidden). The demo offers it
+// frozen panes, a link, a named range, a conditional formatting rule and
+// several sheets (one hidden). The demo offers it
 // as a sample and the tests use it as their fixture.
 import { Model } from "@ironcalc/wasm";
 
@@ -47,6 +48,17 @@ export function buildSampleWorkbook(): Model {
     { type: "External", target: "https://www.ironcalc.com" },
     "IronCalc",
   );
+
+  // A named range over the items, and the totals above 300 highlighted
+  model.newDefinedName("Items", null, "Summary!$A$2:$A$4");
+  model.addConditionalFormatting(0, "F2:F4", {
+    type: "CellIs",
+    operator: "GreaterThan",
+    formula: "300",
+    formula2: null,
+    format: { font: { color: "#008121" }, fill: { color: "#F1F6EA" } },
+    stop_if_true: false,
+  });
 
   // Enough rows to scroll
   for (let row = 12; row <= 200; row += 1) {

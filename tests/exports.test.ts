@@ -19,6 +19,7 @@ describe("package entry points", () => {
       "MenuItem",
       "MenuItemWithSubmenu",
       "Model",
+      "Switch",
       "ToggleButton",
       "Tooltip",
       "Workbook",

@@ -231,10 +231,17 @@ describe("toolbar", () => {
     expect(`${model.getCellStyle(0, 2, 2).style.fill.color}`.toUpperCase()).toBe("#FF0000");
   });
 
-  it("disables the drawer buttons until the drawer lands", () => {
-    setUpWidget();
-    expect(button("Conditional formatting").disabled).toBe(true);
-    expect(button("Cell styles").disabled).toBe(true);
+  it("opens the drawer from its buttons, which show it pressed", async () => {
+    const { container } = setUpWidget();
+    expect(button("Conditional formatting").getAttribute("aria-pressed")).toBe("false");
+    await click("Conditional formatting");
+    expect(button("Conditional formatting").getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector(".ic-drawer-container")?.textContent).toContain(
+      "Conditional Formatting",
+    );
+    await click("Cell styles");
+    expect(button("Cell styles").getAttribute("aria-pressed")).toBe("true");
+    expect(button("Conditional formatting").getAttribute("aria-pressed")).toBe("false");
   });
 });
 
@@ -343,13 +350,10 @@ describe("theme menu", () => {
     await chooseMenuItem(otherName);
     expect(model.getTheme().name).toBe(otherName);
 
-    // "Manage themes" opens the drawer, which is not ported yet
+    // "Manage themes" opens the themes drawer
     await click("Themes");
-    const manage = screen
-      .getAllByRole("menuitem")
-      .find((item) => item.textContent?.trim() === "Manage themes");
-    expect(manage?.hasAttribute("data-disabled")).toBe(true);
-    await closeMenu();
+    await chooseMenuItem("Manage themes");
+    expect(screen.getByRole("listbox", { name: "Themes" })).toBeTruthy();
   });
 });
 

@@ -55,15 +55,17 @@ The plain-TypeScript renderer and the runtime state are carried over unchanged i
 | Color picker and advanced color picker | `ColorPicker/`, `AdvancedColorPicker.tsx/` | ported (pulled forward from phase 4 for the sheet tab colors, and used by the toolbar's font, fill and border colors since phase 4; the advanced picker is a Svelte saturation and hue picker in place of react-colorful) | 3 / 4 |
 | Alert, confirm and prompt dialogs | `Modal/` | ported (the alert, used by editing errors, came with phase 2) | 2 / 3 |
 | UI primitives exported for consumers (Button, IconButton, Checkbox, Input, Menu, MenuItem, MenuItemWithSubmenu, MenuDivider, Confirm, ToggleButton, Tooltip) | `index.ts`, `Button/`, `Checkbox/`, `Input/`, `Menu/`, `Modal/`, `ToggleButton/`, `Tooltip/` | ported (thin Svelte components over Skeleton; React elements become snippets) | 3 |
-| Toolbar: undo/redo, font, size, colors, alignment, wrap, borders, merge, number formats, grid lines, clear formatting, PNG export | `Toolbar/`, `BorderPicker/`, `FormatMenu/`, `Workbook.tsx` | ported (the conditional formatting and cell styles buttons open the right drawer and stay disabled until phase 5; the border picker handles only its own keys) | 4 |
+| Toolbar: undo/redo, font, size, colors, alignment, wrap, borders, merge, number formats, grid lines, clear formatting, PNG export | `Toolbar/`, `BorderPicker/`, `FormatMenu/`, `Workbook.tsx` | ported (the conditional formatting and cell styles buttons open the right drawer since phase 5; the border picker handles only its own keys) | 4 / 5 |
 | Links: insert and edit dialog, edit and break from the link tooltip | `LinkDialog/`, `Select/`, `Worksheet/LinkTooltip.tsx` | ported | 4 |
-| Workbook themes menu | `ThemeMenu/` | ported ("Manage themes" opens the right drawer and stays disabled until phase 5) | 4 |
-| Icon picker (icon sets of conditional formatting rules) | `IconPicker/` | ported (used by the drawer's rule editor in phase 5) | 4 |
-| Named ranges (drawer and address-box menu) | `RightDrawer/NamedRanges/`, `FormulaBar/FormulaBarMenu.tsx` | planned | 5 |
-| Named styles | `RightDrawer/NamedStyles/` | planned | 5 |
-| Conditional formatting rules editor | `RightDrawer/ConditionalFormatting/` | planned | 5 |
-| Theme editor | `RightDrawer/Themes/` | planned | 5 |
-| Regional settings (locale, timezone, language) | `RightDrawer/RegionalSettings/` | planned | 5 |
+| Workbook themes menu | `ThemeMenu/` | ported ("Manage themes" opens the right drawer since phase 5) | 4 / 5 |
+| Icon picker (icon sets of conditional formatting rules) | `IconPicker/` | ported (used by the drawer's icon set rules since phase 5) | 4 / 5 |
+| Right drawer: opened from the toolbar, the address box and the sheet tab bar, resized by dragging or with the keys | `RightDrawer/RightDrawer.tsx`, `Workbook.tsx` | ported (the width is measured from the workbook's right edge and the handle captures the pointer, where upstream measures from the window's edge and styles `document.body` while dragging) | 5 |
+| Named ranges (drawer and address-box menu) | `RightDrawer/NamedRanges/`, `FormulaBar/FormulaBarMenu.tsx` | ported (the address-box menu is a Menu primitive with the WAI-ARIA menu keys upstream's FIXME asks for) | 5 |
+| Named styles | `RightDrawer/NamedStyles/` | ported | 5 |
+| Conditional formatting rules editor | `RightDrawer/ConditionalFormatting/` | ported | 5 |
+| Theme editor | `RightDrawer/Themes/` | ported | 5 |
+| Regional settings (locale, timezone) | `RightDrawer/RegionalSettings/`, `SheetTabBar/SheetTabBar.tsx` | ported (as upstream, the drawer sets the locale and timezone and keeps the workbook's language) | 5 |
+| Switch primitive, exported | `Switch/`, `index.ts` | ported (Skeleton `Switch`) | 5 |
 | Translations (de, en, es, fr, it) and `setLanguage` | `locale/`, `i18n.ts`, `IronCalc.tsx` | planned | 6 |
 
 ## 4. Phases
@@ -90,9 +92,11 @@ The toolbar and everything it opens: the color pickers (ported with phase 3, reu
 
 As landed: `Toolbar.svelte` has every button of upstream's toolbar, and `Workbook.svelte` the handlers behind them (range styles, number formats, font sizes, borders, merging with its error dialog, clear formatting, grid lines, themes, the PNG export of the visible selection) and the link dialog, which the link tooltip's new edit and break-link actions open too; the merge state, merging, borders and link saving are plain functions in `workbookModel.ts`. The toolbar shows only while editing is allowed, and the read-only widget collapses its height, as upstream. Its menus (number formats, merging, themes) are the phase 3 Menu primitives opened by a trigger; the color pickers are those of phase 3; the border picker, the icon picker and the select are ported panels. Three deliberate differences: the conditional formatting and cell styles buttons and the theme menu's "Manage themes" open the right drawer, so without a drawer (phase 5) they are disabled; the border picker takes the focus and handles only its own keys, where upstream listens to (and blocks) every key on the document while it is open; and the select keeps its list inside itself rather than portaling it, so it works inside a Skeleton dialog's focus trap. Upstream's `formatUtil.ts` is carried, and so is `RightDrawer/Themes/themeUtils.ts`, which the theme menu needs, ahead of the drawer. The icons Lucide has no match for are Svelte components in `src/lib/components/icons/` with upstream's SVG unchanged, and the package exports the three logos as upstream does. Upstream's `linkDialogUtil` test is in `tests/upstream/`; widget tests cover the toolbar's buttons, the font size field, the menus, the pickers, the merge error, the link dialog's three tabs and the link tooltip. The demo app shows the toolbar (hidden by its read-only switch) and the exported `IronCalcIcon`.
 
-### 4.5 Phase 5: the right drawer
+### 4.5 Phase 5: the right drawer (landed)
 
 The drawer shell and its sections: named ranges (with the formula bar address menu), named styles, conditional formatting rules, the theme editor and regional settings.
+
+As landed: `RightDrawer.svelte` shows the section `Workbook.svelte` asks for, and the workbook narrows the sheet by the drawer's width while it is open. The toolbar's conditional formatting and cell styles buttons (pressed while their section shows), the theme menu's "Manage themes", the address box's menu and the locale button at the right of the sheet tabs open it; the address box is now upstream's ghost button with the named-ranges menu, on the Menu primitive. The sections follow upstream screen by screen: the named ranges list (search, scope filter, select, edit, delete) and editor (debounced engine validation, scope by sheet, "use selection"); the cell style tiles (the workbook's own, then the built-in ones by category), their manage list and editor (name, number format with a custom one, font, fill, alignment and border, each included by a Switch); the conditional formatting list (search, sheet or selection filter, the reorder slide, edit, duplicate, delete) and the rule editor with its classic, color scale, data bars and icon sets tabs; the themes list and editor with the single custom theme; and the regional settings. The header every section repeats upstream is one `DrawerHeader.svelte`, and the color swatch next to the editors' fields one `SwatchButton.svelte`. The plain-TypeScript parts are ported rather than carried, because upstream keeps them in or next to its React components: `cfRuleMapping.ts` and `ruleDescription.ts` are unchanged but for their imports (the rule data types sit in small modules beside them, and `t` is the widget's lookup, which gained i18next's `defaultValue`), `named-styles-utils.ts` returns CSS strings instead of React style objects, and the presets of the four rule editors are plain modules. Two deliberate differences: the drawer's resize handle measures the width from the workbook's right edge and captures the pointer, where upstream measures from the window's right edge and sets the cursor and `user-select` on `document.body`; and the address-box menu has the menu keys of the Menu primitive, where upstream's popover only closes on Escape and presses outside. Clicking a list item gives the focus back to the sheet, as upstream's focus handling does; clicking a label (a Switch's) now leaves the focus where it is. The `Switch` primitive is ported on Skeleton's and exported, as upstream. Upstream has no tests for the drawer; `tests/drawer.test.ts` drives each section through the widget and `tests/cfRuleMapping.test.ts` round-trips every kind of rule through the engine. The demo's sample workbook gained a named range and a conditional formatting rule, and its read-only toggle is the exported Switch.
 
 ### 4.6 Phase 6: internationalization
 
@@ -109,7 +113,7 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/AdvancedColorPicker.tsx/advanced-color-picker.css` | 135 | src/lib/components/AdvancedColorPicker/AdvancedColorPicker.svelte (`<style>`) | ported | 3 | with the menu layer of `index.css`; the react-colorful overrides are the styles of `HexColorPicker.svelte` |
 | `src/components/AdvancedColorPicker.tsx/useKeyDown.ts` | 54 | src/lib/components/AdvancedColorPicker/AdvancedColorPicker.svelte (`onKeyDown`) | ported | 3 | same keys (Escape, Tab cycling) |
 | `src/components/BorderPicker/BorderPicker.tsx` | 361 | `src/lib/components/BorderPicker/BorderPicker.svelte` | ported | 4 | portaled into the `.ic-root`; it takes the focus when it opens and handles only its own keys (Escape closes the color picker, the style menu, then the panel), where upstream listens to and blocks every key on the document; the style menu also opens on a click, for the keyboard |
-| `src/components/BorderPicker/LineStylePicker.tsx` | 46 | `src/lib/components/BorderPicker/LineStylePicker.svelte` | ported | 4 | the buttons are labelled with the style's name |
+| `src/components/BorderPicker/LineStylePicker.tsx` | 46 | `src/lib/components/BorderPicker/LineStylePicker.svelte` | ported | 4 | the buttons are labelled with the style's name; the line previews are global styles since phase 5, as the cell style editor shows them too |
 | `src/components/BorderPicker/border-picker.css` | 75 | src/lib/components/BorderPicker/BorderPicker.svelte (`<style>`) | ported | 4 |  |
 | `src/components/BorderPicker/line-style-picker.css` | 88 | src/lib/components/BorderPicker/LineStylePicker.svelte (`<style>`) | ported | 4 |  |
 | `src/components/Button/Button.stories.tsx` | 177 |  | not ported | - | Storybook story; the demo app plays this role |
@@ -135,9 +139,9 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/FormatMenu/FormatPicker.tsx` | 30 | `src/lib/components/FormatMenu/FormatPicker.svelte` | ported | 4 | on `Prompt.svelte` |
 | `src/components/FormatMenu/format-menu.css` | 13 | src/lib/components/Toolbar/Toolbar.svelte (`<style>`), `buttonClasses.ts` | ported | 4 | the open trigger's background is the ghost button's `aria-expanded` preset |
 | `src/components/FormatMenu/formatUtil.ts` | 42 | `src/lib/upstream/components/FormatMenu/formatUtil.ts` | carried | 4 | unchanged |
-| `src/components/FormulaBar/FormulaBar.tsx` | 118 | `src/lib/components/FormulaBar/FormulaBar.svelte` | partial | 1 / 5 | address and formula editor ported; the address box is a plain label until the named-ranges menu (phase 5) |
-| `src/components/FormulaBar/FormulaBarMenu.tsx` | 198 |  | planned | 5 | named-ranges menu behind the address box |
-| `src/components/FormulaBar/formula-bar-menu.css` | 105 |  | planned | 5 | named-ranges menu behind the address box |
+| `src/components/FormulaBar/FormulaBar.tsx` | 118 | `src/lib/components/FormulaBar/FormulaBar.svelte` | ported | 1 / 5 | address and formula editor (phase 1), the address box as a ghost button opening the named-ranges menu (phase 5); its open state is the button's `aria-expanded` preset |
+| `src/components/FormulaBar/FormulaBarMenu.tsx` | 198 | `src/lib/components/FormulaBar/FormulaBarMenu.svelte` | ported | 5 | on the Menu primitive with a trigger snippet, so it has the menu keys (arrows, typeahead) upstream's FIXME asks for, where upstream's popover only closes on Escape and presses outside |
+| `src/components/FormulaBar/formula-bar-menu.css` | 105 | src/lib/components/FormulaBar/FormulaBarMenu.svelte (`<style>`), Menu primitive | ported | 5 | the popover and items are the Menu primitive's; the icon and the formula keep upstream's styles |
 | `src/components/FormulaBar/formula-bar.css` | 101 | src/lib/components/FormulaBar/FormulaBar.svelte (`<style>`) | ported | 1 |  |
 | `src/components/FormulaHelper/FormulaHelper.stories.tsx` | 137 |  | not ported | - | Storybook story; the demo app plays this role |
 | `src/components/FormulaHelper/FormulaHelper.tsx` | 240 | `src/lib/components/FormulaHelper/FormulaHelper.svelte` | ported | 2 | the collapse button is a Skeleton `btn-icon` with Lucide's `ChevronUp` |
@@ -145,7 +149,7 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/FormulaHelper/formulaHelper.css` | 143 | src/lib/components/FormulaHelper/FormulaHelper.svelte (`<style>`) | ported | 2 |  |
 | `src/components/FormulaHelper/functions.json` | 7371 | `src/lib/upstream/components/FormulaHelper/functions.json` | carried | 2 | unchanged |
 | `src/components/IconPicker/IconPicker.stories.tsx` | 156 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/IconPicker/IconPicker.tsx` | 160 | `src/lib/components/IconPicker/IconPicker.svelte`, `iconSpec.ts` | ported | 4 | the icon list and `iconSpecFor` are plain TypeScript in `iconSpec.ts`; the grid buttons report the selected icon as pressed |
+| `src/components/IconPicker/IconPicker.tsx` | 160 | `src/lib/components/IconPicker/IconPicker.svelte`, `iconSpec.ts` | ported | 4 | the icon list and `iconSpecFor` are plain TypeScript in `iconSpec.ts`; the grid buttons report the selected icon as pressed; the icon set rules use it since phase 5 |
 | `src/components/IconPicker/icon-picker.css` | 48 | src/lib/components/IconPicker/IconPicker.svelte (`<style>`) | ported | 4 | the grid gets a z-index so it shows above the drawer |
 | `src/components/Input/Input.stories.tsx` | 200 |  | not ported | - | Storybook story; the demo app plays this role |
 | `src/components/Input/Input.tsx` | 215 | `src/lib/components/Input/Input.svelte` | ported | 3 | Skeleton `label`, `input` and `input-group` classes; `value` and `ref` are bindable instead of `onChange` and a forwarded ref; the number input's stepper is kept |
@@ -170,38 +174,38 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/Modal/useModalFocus.ts` | 31 | Skeleton `Dialog` | ported | 3 | replaced by the Skeleton dialog's initial focus and focus restoring |
 | `src/components/Modal/useModalKeyDown.ts` | 50 | Skeleton `Dialog`, src/lib/components/Modal/ModalDialog.svelte | ported | 3 | Escape and the Tab trap come from the Skeleton dialog; Ctrl/Cmd+Enter confirms in `ModalDialog.svelte` |
 | `src/components/README.md` | 11 |  | not ported | - | upstream documentation |
-| `src/components/RightDrawer/ConditionalFormatting/ClassicRule.tsx` | 371 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/ConditionalFormatting/ColorScaleRule.tsx` | 417 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/ConditionalFormatting/ConditionalFormatting.tsx` | 639 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/ConditionalFormatting/DataBarsRule.tsx` | 493 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/ConditionalFormatting/EditRule.tsx` | 269 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/ConditionalFormatting/FormatStylePicker.tsx` | 217 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/ConditionalFormatting/IconSetsRule.tsx` | 901 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/ConditionalFormatting/cfRuleMapping.ts` | 803 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/ConditionalFormatting/conditional-formatting.css` | 278 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/ConditionalFormatting/edit-rule.css` | 338 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/ConditionalFormatting/format-style-picker.css` | 88 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/ConditionalFormatting/ruleDescription.ts` | 111 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/NamedRanges/EditNamedRange.tsx` | 277 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/NamedRanges/NamedRanges.tsx` | 389 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/NamedRanges/edit-name-range.css` | 101 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/NamedRanges/named-ranges.css` | 218 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/NamedStyles/EditNamedStyle.tsx` | 868 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/NamedStyles/ManageCustomStyles.tsx` | 71 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/NamedStyles/NamedStylesPanel.tsx` | 399 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/NamedStyles/edit-named-style.css` | 162 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/NamedStyles/named-styles-utils.ts` | 150 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/NamedStyles/named-styles.css` | 247 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/RegionalSettings/RegionalSettings.tsx` | 198 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/RegionalSettings/regional-settings.css` | 105 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/RightDrawer.tsx` | 251 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/Themes/EditTheme.tsx` | 230 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/Themes/ThemePreview.tsx` | 62 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/Themes/edit-theme.css` | 107 |  | planned | 5 | right drawer |
+| `src/components/RightDrawer/ConditionalFormatting/ClassicRule.tsx` | 371 | `src/lib/components/RightDrawer/ConditionalFormatting/ClassicRule.svelte`, `ApplyToField.svelte`, `UseSelectionButton.svelte` | ported | 5 | the "Apply to" section and the "use selection" button the four editors repeat upstream are components |
+| `src/components/RightDrawer/ConditionalFormatting/ColorScaleRule.tsx` | 417 | `src/lib/components/RightDrawer/ConditionalFormatting/ColorScaleRule.svelte`, `StopRow.svelte`, `colorScale.ts` | ported | 5 | the presets, stop types and gradients are plain TypeScript in `colorScale.ts`; the presets are labelled with their id |
+| `src/components/RightDrawer/ConditionalFormatting/ConditionalFormatting.tsx` | 639 | `src/lib/components/RightDrawer/ConditionalFormatting/ConditionalFormatting.svelte`, `ruleData.ts` | ported | 5 | the reorder slide commits with Svelte's `flushSync` where upstream uses React's; the animation is matched by name prefix, as Svelte scopes keyframes |
+| `src/components/RightDrawer/ConditionalFormatting/DataBarsRule.tsx` | 493 | `src/lib/components/RightDrawer/ConditionalFormatting/DataBarsRule.svelte`, `DataBarMiniChart.svelte`, `dataBars.ts` | ported | 5 | the data and colors are plain TypeScript in `dataBars.ts` |
+| `src/components/RightDrawer/ConditionalFormatting/EditRule.tsx` | 269 | `src/lib/components/RightDrawer/ConditionalFormatting/EditRule.svelte`, `ruleData.ts` | ported | 5 | `RuleData` is in `ruleData.ts` |
+| `src/components/RightDrawer/ConditionalFormatting/FormatStylePicker.tsx` | 217 | `src/lib/components/RightDrawer/ConditionalFormatting/FormatStylePicker.svelte`, `formatStyle.ts` | ported | 5 | `FormatStyle` and the presets are in `formatStyle.ts` |
+| `src/components/RightDrawer/ConditionalFormatting/IconSetsRule.tsx` | 901 | `src/lib/components/RightDrawer/ConditionalFormatting/IconSetsRule.svelte`, `iconSets.ts` | ported | 5 | the presets (Lucide Svelte icons, an icon's extra style as a CSS string), thresholds and data types are plain TypeScript in `iconSets.ts` |
+| `src/components/RightDrawer/ConditionalFormatting/cfRuleMapping.ts` | 803 | `src/lib/components/RightDrawer/ConditionalFormatting/cfRuleMapping.ts` | ported | 5 | unchanged but for the type imports, which upstream takes from its React components; not carried for that reason |
+| `src/components/RightDrawer/ConditionalFormatting/conditional-formatting.css` | 278 | src/lib/components/RightDrawer/ConditionalFormatting/ConditionalFormatting.svelte (`<style>`), DrawerHeader.svelte | ported | 5 |  |
+| `src/components/RightDrawer/ConditionalFormatting/edit-rule.css` | 338 | src/lib/components/RightDrawer/ConditionalFormatting/EditRule.svelte (`<style>`, shared by the four editors), DataBarsRule.svelte, IconSetsRule.svelte, SwatchButton.svelte | ported | 5 |  |
+| `src/components/RightDrawer/ConditionalFormatting/format-style-picker.css` | 88 | src/lib/components/RightDrawer/ConditionalFormatting/FormatStylePicker.svelte, EditRule.svelte (`<style>`) | ported | 5 | the presets' rules, which the other editors share, are EditRule's |
+| `src/components/RightDrawer/ConditionalFormatting/ruleDescription.ts` | 111 | `src/lib/components/RightDrawer/ConditionalFormatting/ruleDescription.ts` | ported | 5 | unchanged but for `t`, the widget's lookup instead of i18next's `TFunction` |
+| `src/components/RightDrawer/NamedRanges/EditNamedRange.tsx` | 277 | `src/lib/components/RightDrawer/NamedRanges/EditNamedRange.svelte` | ported | 5 | the scope options are the Select's strings, with a snippet for the workbook scope |
+| `src/components/RightDrawer/NamedRanges/NamedRanges.tsx` | 389 | `src/lib/components/RightDrawer/NamedRanges/NamedRanges.svelte` | ported | 5 |  |
+| `src/components/RightDrawer/NamedRanges/edit-name-range.css` | 101 | src/lib/components/RightDrawer/NamedRanges/EditNamedRange.svelte (`<style>`) | ported | 5 |  |
+| `src/components/RightDrawer/NamedRanges/named-ranges.css` | 218 | src/lib/components/RightDrawer/NamedRanges/NamedRanges.svelte (`<style>`), DrawerHeader.svelte | ported | 5 |  |
+| `src/components/RightDrawer/NamedStyles/EditNamedStyle.tsx` | 868 | `src/lib/components/RightDrawer/NamedStyles/EditNamedStyle.svelte` | ported | 5 | the line style menu is the Menu primitive with a trigger snippet; the line previews are the border picker's, made global |
+| `src/components/RightDrawer/NamedStyles/ManageCustomStyles.tsx` | 71 | `src/lib/components/RightDrawer/NamedStyles/ManageCustomStyles.svelte` | ported | 5 |  |
+| `src/components/RightDrawer/NamedStyles/NamedStylesPanel.tsx` | 399 | `src/lib/components/RightDrawer/NamedStyles/NamedStylesPanel.svelte` | ported | 5 |  |
+| `src/components/RightDrawer/NamedStyles/edit-named-style.css` | 162 | src/lib/components/RightDrawer/NamedStyles/EditNamedStyle.svelte (`<style>`), SwatchButton.svelte | ported | 5 |  |
+| `src/components/RightDrawer/NamedStyles/named-styles-utils.ts` | 150 | `src/lib/components/RightDrawer/NamedStyles/namedStylesUtils.ts` | ported | 5 | the styles are inline CSS strings with the same properties and values, where upstream returns React's `CSSProperties` |
+| `src/components/RightDrawer/NamedStyles/named-styles.css` | 247 | src/lib/components/RightDrawer/NamedStyles/NamedStylesPanel.svelte, ManageCustomStyles.svelte (`<style>`), DrawerHeader.svelte | ported | 5 |  |
+| `src/components/RightDrawer/RegionalSettings/RegionalSettings.tsx` | 198 | `src/lib/components/RightDrawer/RegionalSettings/RegionalSettings.svelte`, `regionalSettings.ts` | ported | 5 | the locale names and format examples are plain TypeScript in `regionalSettings.ts`, which the sheet tab bar reads too |
+| `src/components/RightDrawer/RegionalSettings/regional-settings.css` | 105 | src/lib/components/RightDrawer/RegionalSettings/RegionalSettings.svelte (`<style>`), DrawerHeader.svelte | ported | 5 |  |
+| `src/components/RightDrawer/RightDrawer.tsx` | 251 | `src/lib/components/RightDrawer/RightDrawer.svelte`, `DrawerHeader.svelte`, `SwatchButton.svelte` | ported | 5 | rendered by the workbook only while open; the width is measured from the workbook's right edge and the handle captures the pointer, where upstream measures from the window's right edge and sets the cursor and `user-select` on `document.body`; the header the sections repeat upstream is `DrawerHeader.svelte` |
+| `src/components/RightDrawer/Themes/EditTheme.tsx` | 230 | `src/lib/components/RightDrawer/Themes/EditTheme.svelte`, `ColorField.svelte`, `themeData.ts` | ported | 5 | `ThemeData` is in `themeData.ts` |
+| `src/components/RightDrawer/Themes/ThemePreview.tsx` | 62 | `src/lib/components/RightDrawer/Themes/ThemePreview.svelte` | ported | 5 |  |
+| `src/components/RightDrawer/Themes/edit-theme.css` | 107 | src/lib/components/RightDrawer/Themes/EditTheme.svelte, ColorField.svelte (`<style>`), SwatchButton.svelte | ported | 5 |  |
 | `src/components/RightDrawer/Themes/themeUtils.ts` | 23 | `src/lib/upstream/components/RightDrawer/Themes/themeUtils.ts` | carried | 4 | unchanged; pulled forward from phase 5 for the theme menu |
-| `src/components/RightDrawer/Themes/themes.css` | 146 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/Themes/themes.tsx` | 199 |  | planned | 5 | right drawer |
-| `src/components/RightDrawer/rightdrawer.css` | 70 |  | planned | 5 | right drawer |
+| `src/components/RightDrawer/Themes/themes.css` | 146 | src/lib/components/RightDrawer/Themes/Themes.svelte, ThemePreview.svelte (`<style>`), DrawerHeader.svelte | ported | 5 |  |
+| `src/components/RightDrawer/Themes/themes.tsx` | 199 | `src/lib/components/RightDrawer/Themes/Themes.svelte`, `themeData.ts` | ported | 5 | `themeToThemeData` is in `themeData.ts` |
+| `src/components/RightDrawer/rightdrawer.css` | 70 | src/lib/components/RightDrawer/RightDrawer.svelte (`<style>`) | ported | 5 |  |
 | `src/components/Select/Select.stories.tsx` | 337 |  | not ported | - | Storybook story; the demo app plays this role |
 | `src/components/Select/Select.tsx` | 404 | `src/lib/components/Select/Select.svelte` | ported | 4 | Skeleton has no select (its Combobox is a text field), so upstream's combobox button and listbox are ported; the list stays inside the select (still `position: fixed`) instead of being portaled into the `.ic-root`, so it works inside a Skeleton dialog's focus trap; labels are strings or snippets; not exported, as upstream |
 | `src/components/Select/dropdown-menu.css` | 63 | src/lib/components/Select/Select.svelte (`<style>`) | ported | 4 |  |
@@ -209,32 +213,32 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/SheetTabBar/SheetDeleteModal.tsx` | 33 | `src/lib/components/SheetTabBar/SheetDeleteModal.svelte` | ported | 3 |  |
 | `src/components/SheetTabBar/SheetListMenu.tsx` | 68 | src/lib/components/SheetTabBar/SheetTabBar.svelte (`Menu`, `MenuItem`) | ported | 1 / 3 | rebuilt on the Menu primitives in phase 3; when the list opens Skeleton highlights its first sheet, where upstream focuses the selected one |
 | `src/components/SheetTabBar/SheetTab.tsx` | 294 | `src/lib/components/SheetTabBar/SheetTab.svelte` | ported | 1 / 3 | selecting and pointing at another sheet (phase 1); renaming in place, the tab menu, the color picker and the delete dialog (phase 3). Closing the menu gives the focus back to its button unless the chosen entry opened the color picker or the delete dialog |
-| `src/components/SheetTabBar/SheetTabBar.tsx` | 142 | `src/lib/components/SheetTabBar/SheetTabBar.svelte` | partial | 1 / 3 / 5 | tabs and sheet list (phase 1) and the add-sheet button (phase 3) ported; the regional settings button comes with phase 5 |
+| `src/components/SheetTabBar/SheetTabBar.tsx` | 142 | `src/lib/components/SheetTabBar/SheetTabBar.svelte` | ported | 1 / 3 / 5 | tabs and sheet list (phase 1), the add-sheet button (phase 3) and the regional settings button showing the locale and language (phase 5) |
 | `src/components/SheetTabBar/SheetTabMenu.tsx` | 68 | `src/lib/components/SheetTabBar/SheetTabMenu.svelte` | ported | 3 |  |
 | `src/components/SheetTabBar/index.ts` | 1 |  | not ported | - | re-export only |
 | `src/components/SheetTabBar/sheet-list-menu.css` | 14 | src/lib/components/SheetTabBar/SheetTabBar.svelte (`<style>`) | ported | 1 / 3 |  |
-| `src/components/SheetTabBar/sheet-tab-bar.css` | 98 | src/lib/components/SheetTabBar/SheetTabBar.svelte (`<style>`) | ported | 1 |  |
+| `src/components/SheetTabBar/sheet-tab-bar.css` | 98 | src/lib/components/SheetTabBar/SheetTabBar.svelte (`<style>`) | ported | 1 / 5 | the regional settings button's styles came with phase 5 |
 | `src/components/SheetTabBar/sheet-tab.css` | 108 | src/lib/components/SheetTabBar/SheetTab.svelte (`<style>`) | ported | 1 / 3 | the rename field and menu button styles came with phase 3 |
 | `src/components/SheetTabBar/types.ts` | 6 | `src/lib/components/SheetTabBar/types.ts` | ported | 1 | copied unchanged |
 | `src/components/Switch/Switch.stories.tsx` | 82 |  | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Switch/Switch.tsx` | 73 |  | planned | 5 | Skeleton `Switch` |
-| `src/components/Switch/switch.css` | 78 |  | planned | 5 | Skeleton `Switch` |
+| `src/components/Switch/Switch.tsx` | 73 | `src/lib/components/Switch/Switch.svelte` | ported | 5 | on Skeleton's `Switch`, the hidden checkbox keeping `role="switch"`; the label is a string or a snippet; exported, as upstream |
+| `src/components/Switch/switch.css` | 78 | src/lib/components/Switch/Switch.svelte (`<style>`), Skeleton `Switch` | ported | 5 | the label's weight and dimming are kept; the track and thumb are Skeleton's |
 | `src/components/Textarea/Textarea.stories.tsx` | 113 |  | not ported | - | Storybook story; the demo app plays this role |
 | `src/components/Textarea/Textarea.tsx` | 103 | `src/lib/components/Textarea/Textarea.svelte` | ported | 3 | Skeleton `label` and `textarea` classes; `value` is bindable; not exported, as upstream |
 | `src/components/Textarea/textarea.css` | 128 | Skeleton `textarea` class | ported | 3 | replaced by the Skeleton class |
-| `src/components/ThemeMenu/ThemeMenu.tsx` | 76 | `src/lib/components/ThemeMenu/ThemeMenu.svelte` | ported | 4 | "Manage themes" is disabled without its handler, until the drawer (phase 5) |
+| `src/components/ThemeMenu/ThemeMenu.tsx` | 76 | `src/lib/components/ThemeMenu/ThemeMenu.svelte` | ported | 4 / 5 | "Manage themes" is disabled without its handler; the workbook gives it one since phase 5 |
 | `src/components/ThemeMenu/theme-menu.css` | 20 | src/lib/components/ThemeMenu/ThemeMenu.svelte (`<style>`) | ported | 4 |  |
 | `src/components/ToggleButton/ToggleButton.stories.tsx` | 216 |  | not ported | - | Storybook story; the demo app plays this role |
 | `src/components/ToggleButton/ToggleButton.tsx` | 111 | `src/lib/components/ToggleButton/ToggleButton.svelte` | ported | 3 | ghost Buttons in a Skeleton `btn-group`; labels and icons are strings or snippets |
 | `src/components/ToggleButton/toggle-button.css` | 64 | Skeleton `btn-group` and presets | ported | 3 | replaced by Skeleton classes |
-| `src/components/Toolbar/Toolbar.tsx` | 782 | `src/lib/components/Toolbar/Toolbar.svelte` | ported | 4 | the drawer buttons (conditional formatting, cell styles) are disabled without their handlers, until phase 5; the scroll arrows also update when the toolbar is resized; the font size handler is told whether the field keeps the focus (arrow keys) so the workbook does not take it |
+| `src/components/Toolbar/Toolbar.tsx` | 782 | `src/lib/components/Toolbar/Toolbar.svelte` | ported | 4 / 5 | the drawer buttons (conditional formatting, cell styles) are disabled without their handlers, which the workbook gives since phase 5; the scroll arrows also update when the toolbar is resized; the font size handler is told whether the field keeps the focus (arrow keys) so the workbook does not take it |
 | `src/components/Toolbar/toolbar.css` | 127 | src/lib/components/Toolbar/Toolbar.svelte (`<style>`) | ported | 4 | upstream's inline styles of the menu buttons are a class there |
 | `src/components/Tooltip/Tooltip.stories.tsx` | 143 |  | not ported | - | Storybook story; the demo app plays this role |
 | `src/components/Tooltip/Tooltip.tsx` | 67 | `src/lib/components/Tooltip/Tooltip.svelte` | ported | 3 | Skeleton `Tooltip` over a wrapping span, as upstream |
 | `src/components/Tooltip/tooltip.css` | 32 | src/lib/components/Tooltip/Tooltip.svelte (`<style>`) | ported | 3 |  |
 | `src/components/Tooltip/useTooltipPosition.ts` | 64 | Skeleton `Tooltip` positioning | ported | 3 | replaced by Skeleton's positioner (above, flipping below) |
 | `src/components/Workbook/Workbook.stories.tsx` | 83 | src/routes/+page.svelte (demo) | not ported | - | Storybook story; the demo app plays this role |
-| `src/components/Workbook/Workbook.tsx` | 1233 | src/lib/components/Workbook/Workbook.svelte, workbookModel.ts | partial | 1 / 2-5 | formula bar, sheet tabs, navigation and edit keys, undo/redo, Delete, the font shortcuts, copy, cut, paste and copy styles (phases 1 and 2), the sheet management handlers and the context menu's cut, copy and paste (phase 3), the toolbar handlers, merging, PNG export and the link dialog (phase 4) ported; the drawer wiring (phase 5) planned. After a toolbar change the focus goes back to the sheet unless a picker, a dialog or the font size field has it, where upstream refocuses it on every render. A rejected sheet change (a name already taken, ...) shows the engine's error in an Alert where upstream calls `window.alert`; a denied clipboard is titled "Cannot paste" where upstream reuses "Failed to delete cells"; the context menu's Paste reads the clipboard into the paste handler directly instead of dispatching a synthetic paste event |
+| `src/components/Workbook/Workbook.tsx` | 1233 | src/lib/components/Workbook/Workbook.svelte, workbookModel.ts | ported | 1-5 | formula bar, sheet tabs, navigation and edit keys, undo/redo, Delete, the font shortcuts, copy, cut, paste and copy styles (phases 1 and 2), the sheet management handlers and the context menu's cut, copy and paste (phase 3), the toolbar handlers, merging, PNG export and the link dialog (phase 4), the drawer wiring and its handlers (named styles, themes, regional settings; phase 5). Clicking a label inside the widget leaves the focus where it is, where upstream takes it back to the sheet. After a toolbar change the focus goes back to the sheet unless a picker, a dialog or the font size field has it, where upstream refocuses it on every render. A rejected sheet change (a name already taken, ...) shows the engine's error in an Alert where upstream calls `window.alert`; a denied clipboard is titled "Cannot paste" where upstream reuses "Failed to delete cells"; the context menu's Paste reads the clipboard into the paste handler directly instead of dispatching a synthetic paste event |
 | `src/components/Workbook/useKeyboardNavigation.ts` | 291 | `src/lib/components/Workbook/keyboardNavigation.ts` | ported | 1 | same key map; the edit keys follow `canEdit` |
 | `src/components/Workbook/workbook.css` | 23 | src/lib/components/Workbook/Workbook.svelte (`<style>`) | ported | 1 |  |
 | `src/components/Worksheet/ContextMenus/Cell.tsx` | 103 | `src/lib/components/Worksheet/ContextMenus/CellContextMenu.svelte` | ported | 3 |  |
@@ -258,7 +262,7 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/components/util.ts` | 322 | `src/lib/upstream/components/util.ts` | carried | 1 | unchanged |
 | `src/components/utils/useMenuPosition.ts` | 107 | `src/lib/components/utils/menuPosition.ts` | ported | 2 | the hook becomes a Svelte attachment; the positioning is unchanged |
 | `src/components/workbookState.ts` | 199 | `src/lib/upstream/components/workbookState.ts` | carried | 1 | unchanged |
-| `src/i18n.ts` | 25 | `src/lib/i18n.ts` | partial | 1 / 6 | English lookup over the carried `en_us.json`, with `{{name}}` interpolation since phase 3; language switching in phase 6 |
+| `src/i18n.ts` | 25 | `src/lib/i18n.ts` | partial | 1 / 6 | English lookup over the carried `en_us.json`, with `{{name}}` interpolation since phase 3 and i18next's `defaultValue` since phase 5; language switching in phase 6 |
 | `src/icons/arrow-middle-from-line.svg` | 14 | `src/lib/components/icons/ArrowMiddleFromLine.svelte` | ported | 4 | the SVG unchanged, with `aria-hidden` and the caller's attributes |
 | `src/icons/border-bottom.svg` | 6 | `src/lib/components/icons/BorderBottomIcon.svelte` | ported | 4 | the SVG unchanged, with `aria-hidden` and the caller's attributes |
 | `src/icons/border-center-h.svg` | 4 | `src/lib/components/icons/BorderCenterHIcon.svelte` | ported | 4 | the SVG unchanged, with `aria-hidden` and the caller's attributes |
@@ -281,7 +285,7 @@ Paths are relative to upstream's `webapp/IronCalc/` and to this repository's roo
 | `src/icons/ironcalc_icon_white.svg` | 7 | `src/lib/components/icons/IronCalcIconWhite.svelte` | ported | 4 | the SVG unchanged, with `aria-hidden` and the caller's attributes; exported, as upstream |
 | `src/icons/orange+black.svg` | 8 | `src/lib/components/icons/IronCalcLogo.svelte` | ported | 4 | the SVG unchanged, with `aria-hidden` and the caller's attributes; exported, as upstream |
 | `src/index.css` | 18 | src/lib/components/IronCalc.svelte (`<style>`) | ported | 1 |  |
-| `src/index.ts` | 45 | `src/lib/index.ts` | partial | 1 / 3 / 4 / 5 | exports the widget, `init`, `Model`, the theme helpers, (phase 3) the UI primitives upstream exports: `Button`, `IconButton`, `Checkbox`, `Input`, `Menu`, `MenuItem`, `MenuItemWithSubmenu`, `MenuDivider`, `Confirm`, `ToggleButton`, `Tooltip` and their property types, and (phase 4) the logos `IronCalcIcon`, `IronCalcIconWhite` and `IronCalcLogo`; `Switch` follows in phase 5 |
+| `src/index.ts` | 45 | `src/lib/index.ts` | partial | 1 / 3 / 4 / 5 / 6 | exports the widget, `init`, `Model`, the theme helpers, (phase 3) the UI primitives upstream exports: `Button`, `IconButton`, `Checkbox`, `Input`, `Menu`, `MenuItem`, `MenuItemWithSubmenu`, `MenuDivider`, `Confirm`, `ToggleButton`, `Tooltip` and their property types, (phase 4) the logos `IronCalcIcon`, `IronCalcIconWhite` and `IronCalcLogo`, and (phase 5) `Switch` and `SwitchProperties`; the `IronCalcHandle` type and the i18n set-up of `init` follow with phase 6 |
 | `src/locale/de_de.json` | 460 |  | planned | 6 | i18n |
 | `src/locale/en_us.json` | 460 | `src/lib/upstream/locale/en_us.json` | carried | 1 | unchanged; English strings for phase 1 |
 | `src/locale/es_es.json` | 460 |  | planned | 6 | i18n |

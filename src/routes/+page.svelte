@@ -1,20 +1,22 @@
 <!--
   Development demo: open an .xlsx file (or the generated sample) in the
-  widget, edit it, and download the model back as .xlsx. The lock button
-  switches the widget to read-only (`canEdit={false}`), which also hides the
+  widget, edit it, and download the model back as .xlsx. The exported Switch
+  makes the widget read-only (`canEdit={false}`), which also hides the
   toolbar. The toolbar opens the number format, merge and theme menus, the
   color and border pickers and the link dialog (also reached from the link
   tooltip of the sample's link); right-click the cells, the column or row
-  headers and the sheet tabs for their menus. Going back to the sample asks
-  first, with the exported Confirm dialog. The header shows the exported
-  IronCalcIcon.
+  headers and the sheet tabs for their menus. The right drawer opens from
+  the toolbar (conditional formatting, cell styles, the theme menu's "Manage
+  themes"), the formula bar's address box (named ranges) and the locale
+  button at the right of the sheet tabs (regional settings); the sample has
+  a named range and a conditional formatting rule to show. Going back to the
+  sample asks first, with the exported Confirm dialog. The header shows the
+  exported IronCalcIcon.
 -->
 <script lang="ts">
   import Download from "@lucide/svelte/icons/download";
   import FileSpreadsheet from "@lucide/svelte/icons/file-spreadsheet";
   import FolderOpen from "@lucide/svelte/icons/folder-open";
-  import Lock from "@lucide/svelte/icons/lock";
-  import LockOpen from "@lucide/svelte/icons/lock-open";
   import Moon from "@lucide/svelte/icons/moon";
   import Sun from "@lucide/svelte/icons/sun";
   import { onMount } from "svelte";
@@ -25,6 +27,7 @@
     IronCalc,
     IronCalcIcon,
     type Model,
+    Switch,
   } from "$lib";
   import { downloadXlsx, initXlsx, modelFromXlsx } from "$lib/xlsx";
   import { buildSampleWorkbook } from "./sampleWorkbook";
@@ -106,16 +109,12 @@
     >
       <Download size={16} /> Download .xlsx
     </button>
-    <button
-      type="button"
-      class="btn-icon btn-icon-sm preset-tonal"
-      aria-label={readOnly ? "Allow editing" : "Make read-only"}
-      aria-pressed={readOnly}
-      title={readOnly ? "Allow editing" : "Make read-only"}
-      onclick={() => (readOnly = !readOnly)}
-    >
-      {#if readOnly}<Lock size={16} />{:else}<LockOpen size={16} />{/if}
-    </button>
+    <Switch
+      label="Read-only"
+      checked={readOnly}
+      onChange={(checked) => (readOnly = checked)}
+      class="px-2 text-sm"
+    />
     <button
       type="button"
       class="btn-icon btn-icon-sm preset-tonal"
